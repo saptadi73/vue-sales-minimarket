@@ -22,7 +22,7 @@ export const useOrderStore = defineStore('order', () => {
     commitment_date: '',
     payment_term_id: null,
     team_id: null,
-    business_category_id: 2, // SUSU OLAHAN
+    business_category_id: null,
     store_id: null,
     vehicle_id: null,
     sale_order_type: 'reguler',
@@ -95,7 +95,7 @@ export const useOrderStore = defineStore('order', () => {
       commitment_date: '',
       payment_term_id: null,
       team_id: null,
-      business_category_id: 2, // SUSU OLAHAN
+      business_category_id: null,
       store_id: null,
       vehicle_id: null,
       sale_order_type: 'reguler',
@@ -117,25 +117,86 @@ export const useOrderStore = defineStore('order', () => {
         quantity: item.quantity,
       }))
 
+      const quantities = Array.from(draft.value.items.values()).reduce<Record<string, number>>(
+        (acc, item) => {
+          acc[String(item.product_id)] = item.quantity
+          return acc
+        },
+        {},
+      )
+
+      const productDebug = Array.from(draft.value.items.values()).map((item) => ({
+        product_id: item.product_id,
+        name: item.name,
+        quantity: item.quantity,
+        business_category_id: item.business_category_id,
+        business_category_name: item.business_category_name,
+      }))
+
+      const uniqueProductBusinessCategories = Array.from(
+        new Set(productDebug.map((item) => item.business_category_id ?? '(undefined)')),
+      )
+
+      const definedProductBusinessCategories = Array.from(
+        new Set(
+          productDebug
+            .map((item) => item.business_category_id)
+            .filter((value): value is number => typeof value === 'number'),
+        ),
+      )
+
       const payload: CreateOrderPayload = {
         partner_id: draft.value.customer?.partner_id,
         customer_qr_ref: draft.value.customer?.customer_qr_ref,
         commitment_date: draft.value.commitment_date,
         payment_term_id: draft.value.payment_term_id || 0,
         team_id: draft.value.team_id || 0,
-        business_category_id: draft.value.business_category_id || 2,
+        business_category_id: draft.value.business_category_id ?? undefined,
         store_id: draft.value.store_id ?? undefined,
         toko_id: draft.value.store_id ?? undefined,
         delivery_vehicle_id: draft.value.vehicle_id ?? undefined,
         vehicle_id: draft.value.vehicle_id ?? undefined,
         mobil_id: draft.value.vehicle_id ?? undefined,
         sale_order_type: draft.value.sale_order_type,
+        debug: true,
         note: draft.value.note,
         grid_lines: gridLines,
+        quantities,
       }
+
+      console.group('[ORDER_DEBUG] Draft before submit')
+      console.log('isSusuOlahan:', isSusuOlahan)
+      console.log('Customer:', draft.value.customer)
+      console.log('Order Metadata:', {
+        commitment_date: draft.value.commitment_date,
+        payment_term_id: draft.value.payment_term_id,
+        team_id: draft.value.team_id,
+        business_category_id: draft.value.business_category_id,
+        store_id: draft.value.store_id,
+        vehicle_id: draft.value.vehicle_id,
+        sale_order_type: draft.value.sale_order_type,
+      })
+      console.log('Payload:', payload)
+      console.log('Products Debug:', productDebug)
+      console.log('Unique Product Business Categories:', uniqueProductBusinessCategories)
+      console.log('Defined Product Business Categories:', definedProductBusinessCategories)
+      if (
+        payload.business_category_id &&
+        definedProductBusinessCategories.length > 0 &&
+        !definedProductBusinessCategories.includes(payload.business_category_id)
+      ) {
+        console.warn(
+          '[ORDER_DEBUG] Potential mismatch: payload business_category_id tidak ada di business_category_id produk yang dipilih.',
+        )
+      }
+      console.groupEnd()
 
       const validation = orderService.validateOrderPayload(payload)
       if (!validation.valid) {
+        console.group('[ORDER_DEBUG] Validation failed before submit')
+        console.log('Validation Errors:', validation.errors)
+        console.log('Payload:', payload)
+        console.groupEnd()
         submitError.value = validation.errors.join('\n')
         return false
       }
@@ -149,10 +210,18 @@ export const useOrderStore = defineStore('order', () => {
         resetDraft()
         return true
       } else {
+        console.group('[ORDER_DEBUG] Backend returned error status')
+        console.log('Backend Message:', response.message)
+        console.log('Backend Debug:', response.debug ?? '(no debug field)')
+        console.log('Payload:', payload)
+        console.groupEnd()
         submitError.value = response.message || 'Gagal membuat order'
         return false
       }
     } catch (err) {
+      console.group('[ORDER_DEBUG] Exception in submitOrder')
+      console.error('Error:', err)
+      console.groupEnd()
       submitError.value = 'Terjadi kesalahan: ' + (err as any).message
       return false
     } finally {

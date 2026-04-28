@@ -54,10 +54,16 @@ export const useAuthStore = defineStore('auth', () => {
         authService.saveUser(userData)
         return true
       } else {
+        console.error('[AUTH_DEBUG] Login gagal di authStore', {
+          status: response.status,
+          message: response.message,
+          hasData: !!response.data,
+        })
         error.value = response.message || 'Login gagal'
         return false
       }
     } catch (err) {
+      console.error('[AUTH_DEBUG] Exception di authStore.login', err)
       error.value = 'Terjadi kesalahan: ' + (err as any).message
       return false
     } finally {

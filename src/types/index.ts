@@ -56,7 +56,10 @@ export interface ProductGridColumn {
 
 export interface GridProductsResponse {
   status: 'success' | 'error'
+  message?: string
   data: {
+    business_category_id?: number
+    business_category_name?: string
     items: Product[]
     count: number
     columns: ProductGridColumn[]
@@ -85,11 +88,33 @@ export interface Customer {
 
 export interface CustomersResponse {
   status: 'success' | 'error'
+  message?: string
   data: {
     business_category_id: number
     business_category_name: string
     items: Customer[]
     count: number
+  }
+}
+
+export interface CustomerSearchItem {
+  id: number
+  text?: string
+  partner_id?: number
+  customer_id?: number
+  name?: string
+  ref?: string
+  customer_qr_ref?: string
+}
+
+export interface CustomerSearchResponse {
+  status: 'success' | 'error'
+  message?: string
+  data: {
+    items?: CustomerSearchItem[]
+    results?: CustomerSearchItem[]
+    count?: number
+    has_more?: boolean
   }
 }
 
@@ -101,6 +126,7 @@ export interface ShippingProduct extends Product {
 
 export interface ShippingProductsResponse {
   status: 'success' | 'error'
+  message?: string
   data: {
     business_category_id: number
     business_category_name: string
@@ -145,6 +171,7 @@ export interface Vehicle {
 
 export interface MasterListResponse<T> {
   status: 'success' | 'error'
+  message?: string
   data: {
     items: T[]
     count: number
@@ -170,6 +197,7 @@ export interface CreateOrderPayload {
   vehicle_id?: number
   mobil_id?: number
   sale_order_type?: 'reguler' | 'kering' | 'partus' | 'silase'
+  debug?: boolean
   note?: string
   grid_lines?: OrderLineItem[]
   quantities?: Record<string, number>
@@ -178,6 +206,7 @@ export interface CreateOrderPayload {
 export interface OrderResponse {
   status: 'success' | 'error'
   message: string
+  debug?: Record<string, any>
   data?: {
     order_id?: number
     order_number?: string
@@ -202,6 +231,7 @@ export interface OrderResponse {
 // Report Types
 export interface DeliveryReportResponse {
   status: 'success' | 'error'
+  message?: string
   data: {
     items: DeliveryReportItem[]
     count: number

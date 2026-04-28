@@ -35,6 +35,10 @@
 
     <!-- Products Grid -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div v-if="loadError" class="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+        <p class="text-sm text-red-800">{{ loadError }}</p>
+      </div>
+
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-gray-100 border-b border-gray-300">
@@ -105,28 +109,14 @@
                   />
                 </svg>
                 Tidak ada produk
+                <p v-if="currentBusinessCategoryId !== null" class="text-xs text-gray-500 mt-2">
+                  Business Category backend: {{ currentBusinessCategoryName || '-' }} (ID:
+                  {{ currentBusinessCategoryId }})
+                </p>
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <!-- Summary -->
-      <div
-        class="bg-gray-50 border-t border-gray-200 px-4 py-4 grid grid-cols-3 gap-4 md:flex md:justify-end md:gap-8"
-      >
-        <div class="text-center md:text-right">
-          <p class="text-xs text-gray-600">Total Items</p>
-          <p class="text-lg md:text-xl font-bold text-gray-900">{{ totalItems }}</p>
-        </div>
-        <div class="text-center md:text-right">
-          <p class="text-xs text-gray-600">Total Produk Berbeda</p>
-          <p class="text-lg md:text-xl font-bold text-gray-900">{{ totalProducts }}</p>
-        </div>
-        <div class="text-center md:text-right">
-          <p class="text-xs text-gray-600">Total Harga</p>
-          <p class="text-lg md:text-xl font-bold text-blue-600">{{ formatPrice(totalAmount) }}</p>
-        </div>
       </div>
     </div>
 
@@ -160,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import productService from '@/services/productService'
 import { useOrderStore } from '@/stores/orderStore'
 import type { Product } from '@/types'
@@ -172,13 +162,10 @@ const searchQuery = ref('')
 const offset = ref(0)
 const limit = ref(20)
 const totalCount = ref(0)
+const loadError = ref<string | null>(null)
+const currentBusinessCategoryId = ref<number | null>(null)
+const currentBusinessCategoryName = ref('')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
-
-const totalItems = computed(() => orderStore.totalItems)
-const totalProducts = computed(
-  () => Array.from(orderStore.draft.items.values()).filter((p) => p.quantity > 0).length,
-)
-const totalAmount = computed(() => orderStore.totalAmount)
 
 function formatPrice(price: number): string {
   return productService.formatPrice(price)
@@ -205,22 +192,79 @@ function debouncedSearch() {
 
 async function loadProducts() {
   isLoading.value = true
+  loadError.value = null
+
+  const currentQuantities = Object.fromEntries(
+    Array.from(orderStore.draft.items.entries()).map(([id, item]) => [id, item.quantity]),
+  )
+
   try {
     const response = await productService.getGridProducts({
       search: searchQuery.value,
       offset: offset.value,
       limit: limit.value,
-      quantities: Object.fromEntries(
-        Array.from(orderStore.draft.items.entries()).map(([id, item]) => [id, item.quantity]),
-      ),
+      quantities: currentQuantities,
     })
 
-    if (response?.status === 'success') {
-      products.value = response.data.items
-      totalCount.value = response.data.count
+    if (!response) {
+      throw new Error('Tidak ada response dari endpoint grid products')
+    }
+
+    if (response.status !== 'success') {
+      throw new Error(response.message || 'Endpoint grid products mengembalikan status error')
+    }
+
+    products.value = response.data.items
+    totalCount.value = response.data.count
+
+    if (typeof response.data.business_category_id === 'number') {
+      currentBusinessCategoryId.value = response.data.business_category_id
+      currentBusinessCategoryName.value = response.data.business_category_name || ''
+      orderStore.setOrderMetadata({
+        business_category_id: response.data.business_category_id,
+      })
     }
   } catch (error) {
-    console.error('Failed to load products:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+    // Fallback ke endpoint susu-olahan/products jika grid-products sedang bermasalah.
+    try {
+      const fallbackResponse = await productService.getSusuOlahanProducts({
+        search: searchQuery.value,
+        offset: offset.value,
+        limit: limit.value,
+      })
+
+      if (!fallbackResponse || fallbackResponse.status !== 'success') {
+        throw new Error(
+          fallbackResponse?.message ||
+            'Endpoint fallback susu-olahan/products juga gagal merespons sukses',
+        )
+      }
+
+      products.value = fallbackResponse.data.items
+      totalCount.value = fallbackResponse.data.count
+
+      if (typeof fallbackResponse.data.business_category_id === 'number') {
+        currentBusinessCategoryId.value = fallbackResponse.data.business_category_id
+        currentBusinessCategoryName.value = fallbackResponse.data.business_category_name || ''
+        orderStore.setOrderMetadata({
+          business_category_id: fallbackResponse.data.business_category_id,
+        })
+      }
+
+      loadError.value = `Grid produk utama gagal (${errorMessage}). Menampilkan data dari endpoint fallback susu olahan.`
+    } catch (fallbackError) {
+      const fallbackMessage =
+        fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
+      products.value = []
+      totalCount.value = 0
+      loadError.value = `Gagal memuat daftar produk. Detail grid: ${errorMessage}. Detail fallback: ${fallbackMessage}`
+      console.error('Failed to load products (grid + fallback):', {
+        gridError: error,
+        fallbackError,
+      })
+    }
   } finally {
     isLoading.value = false
   }

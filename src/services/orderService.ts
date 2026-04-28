@@ -1,6 +1,91 @@
 import { postJsonRpc } from './httpClient'
 import { API_CONFIG } from '@/config/api'
 import type { CreateOrderPayload, OrderResponse } from '@/types'
+import { getApiBaseUrl } from '@/utils/apiUrl'
+
+function summarizePayloadForDebug(payload: CreateOrderPayload) {
+  return {
+    partner_id: payload.partner_id,
+    customer_qr_ref: payload.customer_qr_ref,
+    commitment_date: payload.commitment_date,
+    payment_term_id: payload.payment_term_id,
+    team_id: payload.team_id,
+    business_category_id: payload.business_category_id,
+    store_id: payload.store_id,
+    toko_id: payload.toko_id,
+    delivery_vehicle_id: payload.delivery_vehicle_id,
+    vehicle_id: payload.vehicle_id,
+    mobil_id: payload.mobil_id,
+    sale_order_type: payload.sale_order_type,
+    debug: payload.debug,
+    grid_lines_count: payload.grid_lines?.length || 0,
+    product_ids: (payload.grid_lines || []).map((line) => line.product_id),
+    quantities_count: payload.quantities ? Object.keys(payload.quantities).length : 0,
+  }
+}
+
+function logOrderSubmitDebug(
+  stage: 'REQUEST' | 'RESPONSE_ERROR_STATUS' | 'RESPONSE_SUCCESS',
+  endpoint: string,
+  payload: CreateOrderPayload,
+  response?: OrderResponse,
+) {
+  const baseUrl = getApiBaseUrl()
+  const resolvedUrl = `${baseUrl || ''}${endpoint}`
+
+  console.group(`[ORDER_DEBUG] ${stage} ${endpoint}`)
+  console.log('Base URL:', baseUrl || '(same-origin)')
+  console.log('Resolved URL:', resolvedUrl)
+  console.log('Payload Summary:', summarizePayloadForDebug(payload))
+  if (response) {
+    console.log('Response Status:', response.status)
+    console.log('Response Message:', response.message)
+    console.log('Response Debug:', response.debug ?? '(no debug field)')
+    console.log('Raw Response:', response)
+  }
+  console.groupEnd()
+}
+
+function logOrderSubmitException(error: unknown, endpoint: string, payload: CreateOrderPayload) {
+  const err = error as any
+  const baseUrl = getApiBaseUrl()
+  const resolvedUrl = `${baseUrl || ''}${endpoint}`
+
+  console.group(`[ORDER_DEBUG] EXCEPTION ${endpoint}`)
+  console.log('Base URL:', baseUrl || '(same-origin)')
+  console.log('Resolved URL:', resolvedUrl)
+  console.log('Payload Summary:', summarizePayloadForDebug(payload))
+  console.log('HTTP Status:', err?.response?.status ?? '(no status)')
+  console.log('Response Data:', err?.response?.data ?? '(no response body)')
+  console.log('Error Message:', err?.message ?? '(no message)')
+  console.error('Raw Error Object:', err)
+  console.groupEnd()
+}
+
+async function submitOrderRequest(
+  endpoint: string,
+  payload: CreateOrderPayload,
+): Promise<OrderResponse> {
+  try {
+    logOrderSubmitDebug('REQUEST', endpoint, payload)
+    const response = await postJsonRpc<OrderResponse>(endpoint, payload)
+
+    if (response?.status === 'error') {
+      logOrderSubmitDebug('RESPONSE_ERROR_STATUS', endpoint, payload, response)
+    } else {
+      logOrderSubmitDebug('RESPONSE_SUCCESS', endpoint, payload, response)
+    }
+
+    return response
+  } catch (error) {
+    logOrderSubmitException(error, endpoint, payload)
+    const backendMessage = extractBackendErrorMessage(error)
+    return {
+      status: 'error',
+      message: normalizeBackendOrderError(backendMessage),
+    }
+  }
+}
 
 function extractBackendErrorMessage(error: unknown): string {
   const err = error as any
@@ -24,7 +109,11 @@ function extractBackendErrorMessage(error: unknown): string {
 function normalizeBackendOrderError(message: string): string {
   const lower = message.toLowerCase()
 
-  if (lower.includes('partner_id') || lower.includes('customer_qr_ref') || lower.includes('customer')) {
+  if (
+    lower.includes('partner_id') ||
+    lower.includes('customer_qr_ref') ||
+    lower.includes('customer')
+  ) {
     return 'Data customer tidak valid atau belum dipilih.'
   }
   if (lower.includes('payment_term') || lower.includes('syarat pembayaran')) {
@@ -57,7 +146,7 @@ function normalizeBackendOrderError(message: string): string {
     return 'Data produk/quantity tidak valid. Pastikan minimal satu produk memiliki quantity > 0.'
   }
   if (lower.includes('business_category')) {
-    return 'Business category tidak sesuai. Pastikan transaksi memakai kategori SUSU OLAHAN.'
+    return `Business category tidak sesuai. Pastikan transaksi memakai kategori SUSU OLAHAN. Backend: ${message}`
   }
   if (
     lower.includes('unauthorized') ||
@@ -76,19 +165,7 @@ export const orderService = {
    * Create draft sales order untuk minimarket
    */
   async createMinimarketOrder(payload: CreateOrderPayload): Promise<OrderResponse> {
-    try {
-      const response = await postJsonRpc<OrderResponse>(
-        API_CONFIG.endpoints.minimarketDraftOrder,
-        payload,
-      )
-      return response
-    } catch (error) {
-      const backendMessage = extractBackendErrorMessage(error)
-      return {
-        status: 'error',
-        message: normalizeBackendOrderError(backendMessage),
-      }
-    }
+    return submitOrderRequest(API_CONFIG.endpoints.minimarketDraftOrder, payload)
   },
 
   /**
@@ -96,19 +173,7 @@ export const orderService = {
    * Backend memakai metadata toko dan armada tanpa menambah line ongkir
    */
   async createSusuOlahanOrder(payload: CreateOrderPayload): Promise<OrderResponse> {
-    try {
-      const response = await postJsonRpc<OrderResponse>(
-        API_CONFIG.endpoints.susuOlahanDraftOrder,
-        payload,
-      )
-      return response
-    } catch (error) {
-      const backendMessage = extractBackendErrorMessage(error)
-      return {
-        status: 'error',
-        message: normalizeBackendOrderError(backendMessage),
-      }
-    }
+    return submitOrderRequest(API_CONFIG.endpoints.susuOlahanDraftOrder, payload)
   },
 
   /**

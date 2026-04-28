@@ -14,7 +14,8 @@ Tujuan UI:
 
 | Endpoint | Method | Auth | Tujuan |
 | --- | --- | --- | --- |
-| `/api/sales/susu-olahan/customers` | `POST` | user | mengambil customer yang terkait Business Category SUSU OLAHAN |
+| `/api/sales/susu-olahan/customers` | `POST` | user | mengambil master customer global untuk frontend SUSU OLAHAN |
+| `/api/sales/susu-olahan/customer-search` | `POST` | user | autocomplete customer global untuk pencarian saat mengetik di HP |
 | `/api/sales/susu-olahan/products` | `POST` | user | mengambil produk saleable Business Category SUSU OLAHAN |
 | `/api/sales/susu-olahan/shipping-products` | `POST` | user | endpoint referensi legacy produk ongkir SUSU OLAHAN (tidak dipakai flow draft-order minimarket saat ini) |
 | `/api/sales/susu-olahan/stores` | `POST` | user | mengambil daftar toko/cabang untuk dropdown toko pengirim |
@@ -151,7 +152,7 @@ Setup customer:
 
 - Customer minimarket perlu punya `Customer QR Ref`.
 - `Wilayah Ongkir` tetap bisa dipelihara sebagai data partner legacy, namun tidak digunakan untuk menambah line ongkir di flow minimarket saat ini.
-- Customer akan muncul di endpoint `/api/sales/susu-olahan/customers` jika pernah punya Sales Order kategori `SUSU OLAHAN`, punya Customer Behavior Analysis kategori tersebut, atau field `Behavior Business Category` di partner diset ke `SUSU OLAHAN`.
+- Customer akan muncul di endpoint `/api/sales/susu-olahan/customers` dari master customer global. Business Category `SUSU OLAHAN` tidak menjadi syarat filter customer.
 
 ## Master Data SUSU OLAHAN
 
@@ -264,7 +265,7 @@ Response:
 
 ### `POST /api/sales/susu-olahan/customers`
 
-Mengambil customer minimarket yang terkait kategori `SUSU OLAHAN`.
+Mengambil master customer global untuk frontend `SUSU OLAHAN`.
 
 Request:
 
@@ -273,8 +274,7 @@ Request:
   "params": {
     "search": "alfamart",
     "limit": 50,
-    "offset": 0,
-    "only_customers": true
+    "offset": 0
   }
 }
 ```
@@ -312,10 +312,59 @@ Response:
 }
 ```
 
+### `POST /api/sales/susu-olahan/customer-search`
+
+Gunakan endpoint ini untuk field customer di HP agar frontend tidak perlu memuat dropdown customer terlalu banyak. Endpoint menerima `q`, `term`, `query`, atau `search`.
+
+Request:
+
+```json
+{
+  "params": {
+    "q": "alfa",
+    "limit": 20,
+    "min_chars": 1
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "items": [
+      {
+        "id": 45,
+        "text": "Alfamart Cabang A [ALFA-A] CUSTQR2603-000001",
+        "partner_id": 45,
+        "customer_id": 45,
+        "name": "Alfamart Cabang A",
+        "ref": "ALFA-A",
+        "customer_qr_ref": "CUSTQR2603-000001"
+      }
+    ],
+    "results": [
+      {
+        "id": 45,
+        "text": "Alfamart Cabang A [ALFA-A] CUSTQR2603-000001"
+      }
+    ],
+    "count": 1,
+    "has_more": false
+  }
+}
+```
+
+Alias endpoint:
+
+- `POST /api/sales/susu-olahan/customers/search`
+
 ## Flow UI yang Disarankan
 
 1. Sales login dari Vue.
-2. Frontend mengambil customer dari `/api/sales/susu-olahan/customers`.
+2. Frontend mencari customer saat user mengetik melalui `/api/sales/susu-olahan/customer-search`.
 3. Frontend mengambil produk susu olahan dari `/api/sales/susu-olahan/products` atau `/api/sales/minimarket/grid-products`.
 4. Jika frontend masih memiliki halaman maintenance data legacy ongkir, data referensi bisa diambil dari `/api/sales/susu-olahan/shipping-products`.
 5. Frontend menampilkan produk sebagai sheet/list menurun.
@@ -398,6 +447,8 @@ Catatan frontend:
 
 ## Create Draft Sales Order dari Grid
 
+Untuk troubleshooting di HP/browser, kirim `debug: true` saat create draft order. Jika terjadi error, response menyertakan field `debug` yang bisa ditampilkan dengan `console.log`.
+
 ### `POST /api/sales/minimarket/draft-order`
 
 Endpoint ini menerima dua bentuk payload quantity.
@@ -475,6 +526,7 @@ Contoh request:
     "store_id": 1,
     "delivery_vehicle_id": 5,
     "team_id": 3,
+    "debug": true,
     "sale_order_type": "reguler",
     "note": "PO susu olahan cabang A",
     "quantities": {
@@ -488,6 +540,7 @@ Contoh request:
 
 Jika frontend tetap mengirim `business_category_id`, nilainya harus mengarah ke category `SUSU OLAHAN`.
 Produk yang dikirim juga harus sudah diset ke Business Category `SUSU OLAHAN`.
+Jika muncul error Business Category, cek `debug.payload_business_category_id`, `debug.resolved_business_category_*`, `debug.products`, dan `debug.user_effective_business_categories` di response.
 
 Response sukses mengikuti response endpoint draft order existing:
 

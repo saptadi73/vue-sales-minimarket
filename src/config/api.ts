@@ -10,6 +10,7 @@ export const API_CONFIG = {
 
     // Susu Olahan
     susuOlahanCustomers: '/api/sales/susu-olahan/customers',
+    susuOlahanCustomerSearch: '/api/sales/susu-olahan/customer-search',
     susuOlahanProducts: '/api/sales/susu-olahan/products',
     susuOlahanShippingProducts: '/api/sales/susu-olahan/shipping-products',
     susuOlahanStores: '/api/sales/susu-olahan/stores',

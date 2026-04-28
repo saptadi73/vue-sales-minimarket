@@ -41,7 +41,15 @@ export async function postJsonRpc<T = any>(
   config?: AxiosRequestConfig,
 ) {
   const response = await httpClient.post<T>(endpoint, { params }, config)
-  return response.data
+  const payload: any = response.data
+
+  // Backend Odoo JSON-RPC biasanya membungkus data di { result: ... }
+  // Namun beberapa endpoint/mock bisa langsung mengembalikan object final.
+  if (payload && typeof payload === 'object' && 'result' in payload) {
+    return payload.result as T
+  }
+
+  return payload as T
 }
 
 // Helper function untuk GET requests

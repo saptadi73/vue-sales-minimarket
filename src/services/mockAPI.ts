@@ -195,6 +195,28 @@ export function setupMockAPI() {
         })
       }
 
+      // Mock customer autocomplete endpoint
+      if (config.url.includes('/api/sales/susu-olahan/customer-search')) {
+        return Promise.resolve({
+          data: {
+            status: 'success',
+            data: {
+              items: mockCustomers.map((customer) => ({
+                id: customer.partner_id,
+                text: `${customer.name} [${customer.ref}] ${customer.customer_qr_ref}`,
+                partner_id: customer.partner_id,
+                customer_id: customer.customer_id,
+                name: customer.name,
+                ref: customer.ref,
+                customer_qr_ref: customer.customer_qr_ref,
+              })),
+              count: mockCustomers.length,
+              has_more: false,
+            },
+          },
+        })
+      }
+
       // Mock create order endpoint
       if (
         config.url.includes('/api/sales/susu-olahan/draft-order') ||

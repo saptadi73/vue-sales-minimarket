@@ -40,10 +40,13 @@
               id="odoo-url"
               v-model="form.odooUrl"
               type="text"
-              placeholder="e.g., localhost:8069 atau https://odoo.example.com"
+              placeholder="Kosongkan untuk pakai server default"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             />
-            <p class="text-xs text-gray-500 mt-1">URL server Odoo Anda (contoh: localhost:8069)</p>
+            <p class="text-xs text-gray-500 mt-1">
+              Kosongkan jika menggunakan server yang sama (production). Isi jika ingin override,
+              contoh: <code class="bg-gray-100 px-1 rounded">localhost:8069</code>
+            </p>
             <div v-if="urlError" class="text-xs text-red-600 mt-1">{{ urlError }}</div>
           </div>
 
@@ -151,7 +154,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
-import { validateApiUrl, getApiBaseUrl } from '@/utils/apiUrl'
+import { validateApiUrl, setApiBaseUrl } from '@/utils/apiUrl'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -189,6 +192,9 @@ async function handleLogin() {
       urlError.value = validation.error || 'URL tidak valid'
       return
     }
+  } else {
+    // URL kosong → bersihkan localStorage agar pakai mode relative/same-origin
+    setApiBaseUrl('')
   }
 
   const success = await authStore.login(

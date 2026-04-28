@@ -3,6 +3,82 @@ import { API_CONFIG } from '@/config/api'
 import { getApiBaseUrl } from '@/utils/apiUrl'
 import type { LoginCredentials, AuthResponse, User } from '@/types'
 
+function extractBackendAuthErrorMessage(error: unknown): string {
+  const err = error as any
+
+  const responseData = err?.response?.data
+  if (responseData?.message && typeof responseData.message === 'string') {
+    return responseData.message
+  }
+
+  if (responseData?.error?.message && typeof responseData.error.message === 'string') {
+    return responseData.error.message
+  }
+
+  if (responseData?.error?.data?.message && typeof responseData.error.data.message === 'string') {
+    return responseData.error.data.message
+  }
+
+  if (err?.message && typeof err.message === 'string') {
+    return err.message
+  }
+
+  return 'Terjadi kesalahan saat login'
+}
+
+function debugLoginError(
+  error: unknown,
+  endpoint: string,
+  baseUrl: string,
+  credentials: LoginCredentials,
+) {
+  const err = error as any
+  const requestUrl = `${baseUrl || ''}${endpoint}`
+
+  // Jangan log password asli untuk keamanan
+  const safeCredentials = {
+    login: credentials.login,
+    db: credentials.db,
+    password: credentials.password ? '***' : '(empty)',
+  }
+
+  console.group('[AUTH_DEBUG] Login gagal')
+  console.log('Endpoint:', endpoint)
+  console.log('Base URL:', baseUrl || '(same-origin)')
+  console.log('Resolved URL:', requestUrl)
+  console.log('Credentials:', safeCredentials)
+  console.log('HTTP Status:', err?.response?.status ?? '(no status)')
+  console.log('Response Data:', err?.response?.data ?? '(no response body)')
+  console.log('Error Message:', err?.message ?? '(no message)')
+  console.error('Raw Error Object:', err)
+  console.groupEnd()
+}
+
+function debugLoginFailedResponse(
+  response: AuthResponse,
+  endpoint: string,
+  baseUrl: string,
+  credentials: LoginCredentials,
+) {
+  const requestUrl = `${baseUrl || ''}${endpoint}`
+
+  // Jangan log password asli untuk keamanan
+  const safeCredentials = {
+    login: credentials.login,
+    db: credentials.db,
+    password: credentials.password ? '***' : '(empty)',
+  }
+
+  console.group('[AUTH_DEBUG] Login ditolak backend')
+  console.log('Endpoint:', endpoint)
+  console.log('Base URL:', baseUrl || '(same-origin)')
+  console.log('Resolved URL:', requestUrl)
+  console.log('Credentials:', safeCredentials)
+  console.log('Backend Response:', response)
+  console.log('Backend Message:', response?.message || '(no message)')
+  console.groupEnd()
+}
+
 export const authService = {
   /**
    * Login ke Odoo
@@ -18,11 +94,20 @@ export const authService = {
         password: credentials.password,
         db: credentials.db,
       })
+
+      // Kasus umum Odoo: HTTP 200 tapi status API = error
+      if (response.status !== 'success' || !response.data) {
+        debugLoginFailedResponse(response, API_CONFIG.endpoints.authenticate, baseUrl, credentials)
+      }
+
       return response
     } catch (error) {
+      const baseUrl = getApiBaseUrl()
+      debugLoginError(error, API_CONFIG.endpoints.authenticate, baseUrl, credentials)
+
       return {
         status: 'error',
-        message: 'Login failed: ' + (error as any).message,
+        message: extractBackendAuthErrorMessage(error),
       }
     }
   },

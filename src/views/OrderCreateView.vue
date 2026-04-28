@@ -9,66 +9,31 @@
         </div>
       </div>
 
-      <!-- Main Grid: Order Form + Product Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left: Order Form -->
-        <div class="lg:col-span-1">
-          <div class="bg-white rounded-lg shadow-md p-6 sticky top-32 space-y-6">
+      <!-- Main Grid: Product + Form + Summary -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Product Grid (mobile first) -->
+        <div class="order-1 lg:order-2 lg:col-span-6">
+          <ProductGrid />
+        </div>
+
+        <!-- Detail Form -->
+        <div class="order-2 lg:order-1 lg:col-span-3">
+          <div class="bg-white rounded-lg shadow-md p-6 lg:sticky lg:top-32 space-y-6">
             <h2 class="text-lg font-semibold text-gray-900">Detail Order</h2>
 
-            <form @submit.prevent="submitOrder" class="space-y-4">
+            <form id="order-form" @submit.prevent="submitOrder" class="space-y-4">
               <!-- Customer -->
               <div>
                 <label for="customer" class="block text-sm font-medium text-gray-700 mb-2">
                   Pilih Customer *
                 </label>
-                <div class="relative">
-                  <input
-                    v-model="customerSearch"
-                    @input="searchCustomers"
-                    @focus="showCustomerDropdown = true"
-                    @blur="hideCustomerDropdown"
-                    type="text"
-                    placeholder="Cari customer..."
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <svg
-                    v-if="!orderStore.draft.customer"
-                    class="absolute right-3 top-2.5 w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                </div>
-
-                <!-- Dropdown Results -->
-                <div
-                  v-if="showCustomerDropdown && (customers.length > 0 || customerSearch)"
-                  class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto"
-                >
-                  <div v-if="customers.length === 0" class="p-4 text-gray-600 text-sm">
-                    Tidak ada customer ditemukan
-                  </div>
-                  <button
-                    v-for="customer in customers"
-                    :key="customer.customer_id"
-                    @click="selectCustomer(customer)"
-                    type="button"
-                    class="w-full text-left px-4 py-3 hover:bg-blue-50 transition border-b border-gray-100 last:border-b-0"
-                  >
-                    <p class="font-medium text-gray-900">{{ customer.name }}</p>
-                    <p class="text-xs text-gray-600">
-                      {{ customer.ref }} • {{ customer.shipping_wilayah_name }}
-                    </p>
-                  </button>
-                </div>
+                <CustomerAutocomplete
+                  ref="customerAutocompleteRef"
+                  :min-chars="1"
+                  :limit="20"
+                  @select="selectCustomerFromAutocomplete"
+                  @error="handleCustomerSearchError"
+                />
 
                 <!-- Selected Customer -->
                 <div
@@ -76,9 +41,11 @@
                   class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
                 >
                   <p class="font-medium text-blue-900">{{ orderStore.draft.customer.name }}</p>
-                  <p class="text-xs text-blue-700">{{ orderStore.draft.customer.ref }}</p>
+                  <p class="text-xs text-blue-700">
+                    {{ orderStore.draft.customer.ref || orderStore.draft.customer.customer_qr_ref }}
+                  </p>
                   <button
-                    @click="orderStore.setCustomer(null)"
+                    @click="clearSelectedCustomer"
                     type="button"
                     class="text-xs text-blue-600 hover:text-blue-800 mt-1"
                   >
@@ -205,78 +172,72 @@
                   rows="3"
                 />
               </div>
-
-              <!-- Summary -->
-              <div class="bg-gray-50 rounded-lg p-4 space-y-2 border border-gray-200">
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-600">Total Items:</span>
-                  <span class="font-semibold text-gray-900">{{ orderStore.totalItems }}</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                  <span class="text-gray-600">Produk Berbeda:</span>
-                  <span class="font-semibold text-gray-900">
-                    {{
-                      Array.from(orderStore.draft.items.values()).filter((p) => p.quantity > 0)
-                        .length
-                    }}
-                  </span>
-                </div>
-                <div class="border-t border-gray-300 pt-2 flex justify-between">
-                  <span class="text-gray-700 font-medium">Total Harga:</span>
-                  <span class="font-bold text-blue-600">{{
-                    formatPrice(orderStore.totalAmount)
-                  }}</span>
-                </div>
-              </div>
-
-              <!-- Error Message -->
-              <div
-                v-if="orderStore.submitError"
-                class="p-3 bg-red-50 border border-red-200 rounded-lg"
-              >
-                <p class="text-sm text-red-800">{{ orderStore.submitError }}</p>
-              </div>
-
-              <!-- Submit Button -->
-              <button
-                type="submit"
-                :disabled="orderStore.isSubmitting || !orderStore.draft.customer"
-                class="w-full px-4 py-3 bg-linear-to-r from-green-600 to-green-700 text-white font-semibold rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                <span v-if="orderStore.isSubmitting" class="flex items-center justify-center gap-2">
-                  <svg
-                    class="w-4 h-4 animate-spin"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                  Membuat Order...
-                </span>
-                <span v-else>✓ Buat Draft Order</span>
-              </button>
-
-              <!-- Clear Button -->
-              <button
-                @click="resetForm"
-                type="button"
-                class="w-full px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition"
-              >
-                Reset Form
-              </button>
             </form>
           </div>
         </div>
 
-        <!-- Right: Product Grid -->
-        <div class="lg:col-span-2">
-          <ProductGrid />
+        <!-- Summary & Actions -->
+        <div class="order-3 lg:order-3 lg:col-span-3">
+          <div class="bg-white rounded-lg shadow-md p-6 lg:sticky lg:top-32 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900">Ringkasan Order</h2>
+
+            <div class="bg-gray-50 rounded-lg p-4 space-y-2 border border-gray-200">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Total Items:</span>
+                <span class="font-semibold text-gray-900">{{ orderStore.totalItems }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Produk Berbeda:</span>
+                <span class="font-semibold text-gray-900">{{ totalDistinctProducts }}</span>
+              </div>
+              <div class="border-t border-gray-300 pt-2 flex justify-between">
+                <span class="text-gray-700 font-medium">Total Harga:</span>
+                <span class="font-bold text-blue-600">{{
+                  formatPrice(orderStore.totalAmount)
+                }}</span>
+              </div>
+            </div>
+
+            <div
+              v-if="orderStore.submitError"
+              class="p-3 bg-red-50 border border-red-200 rounded-lg"
+            >
+              <p class="text-sm text-red-800">{{ orderStore.submitError }}</p>
+            </div>
+
+            <button
+              form="order-form"
+              type="submit"
+              :disabled="orderStore.isSubmitting || !orderStore.draft.customer"
+              class="w-full px-4 py-3 bg-linear-to-r from-green-600 to-green-700 text-white font-semibold rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              <span v-if="orderStore.isSubmitting" class="flex items-center justify-center gap-2">
+                <svg
+                  class="w-4 h-4 animate-spin"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                Membuat Order...
+              </span>
+              <span v-else>✓ Buat Draft Order</span>
+            </button>
+
+            <button
+              @click="resetForm"
+              type="button"
+              class="w-full px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition"
+            >
+              Reset Form
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -284,26 +245,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Layout from '@/components/Layout.vue'
 import ProductGrid from '@/components/ProductGrid.vue'
+import CustomerAutocomplete from '@/components/CustomerAutocomplete.vue'
 import { useOrderStore } from '@/stores/orderStore'
 import customerService from '@/services/customerService'
 import productService from '@/services/productService'
 import masterDataService from '@/services/masterDataService'
-import type { Customer, Store, Vehicle } from '@/types'
+import type { Customer, CustomerSearchItem, Store, Vehicle } from '@/types'
 import { notifyError, notifySuccess, notifyWarning } from '@/utils/notify'
 
 const router = useRouter()
 const orderStore = useOrderStore()
 
-const customerSearch = ref('')
-const customers = ref<Customer[]>([])
-const showCustomerDropdown = ref(false)
+const customerAutocompleteRef = ref<InstanceType<typeof CustomerAutocomplete> | null>(null)
 const stores = ref<Store[]>([])
 const vehicles = ref<Vehicle[]>([])
 const loadingMasterData = ref(false)
+const totalDistinctProducts = computed(
+  () => Array.from(orderStore.draft.items.values()).filter((p) => p.quantity > 0).length,
+)
 
 const orderForm = reactive({
   commitment_date: '',
@@ -328,15 +291,34 @@ onMounted(async () => {
 async function loadMasterData() {
   loadingMasterData.value = true
   try {
-    const [storesList, vehiclesList] = await Promise.all([
+    const [storesResult, vehiclesResult] = await Promise.allSettled([
       masterDataService.listStores(),
       masterDataService.listVehicles(),
     ])
 
-    stores.value = storesList
-    vehicles.value = vehiclesList
+    if (storesResult.status === 'fulfilled') {
+      stores.value = storesResult.value
+    } else {
+      stores.value = []
+      const storeError =
+        storesResult.reason instanceof Error
+          ? storesResult.reason.message
+          : 'Gagal memuat daftar toko dari backend.'
+      notifyError('Gagal memuat toko', storeError)
+    }
 
-    if (!storesList.length || !vehiclesList.length) {
+    if (vehiclesResult.status === 'fulfilled') {
+      vehicles.value = vehiclesResult.value
+    } else {
+      vehicles.value = []
+      const vehicleError =
+        vehiclesResult.reason instanceof Error
+          ? vehiclesResult.reason.message
+          : 'Gagal memuat daftar kendaraan dari backend.'
+      notifyError('Gagal memuat kendaraan', vehicleError)
+    }
+
+    if (!stores.value.length || !vehicles.value.length) {
       notifyWarning(
         'Master data belum lengkap',
         'Daftar toko atau kendaraan kosong. Pastikan master data Odoo sudah tersedia.',
@@ -344,41 +326,54 @@ async function loadMasterData() {
     }
   } catch (error) {
     console.error('Failed to load master data:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     notifyError(
       'Gagal memuat master data',
-      'Tidak dapat mengambil data toko/kendaraan dari backend Odoo.',
+      `Tidak dapat mengambil data toko/kendaraan dari backend Odoo. Detail: ${errorMessage}`,
     )
   } finally {
     loadingMasterData.value = false
   }
 }
 
-async function searchCustomers() {
-  if (customerSearch.value.length < 2) {
-    customers.value = []
-    return
-  }
-
+async function selectCustomerFromAutocomplete(option: CustomerSearchItem) {
   try {
-    customers.value = await customerService.searchCustomers(customerSearch.value, 10)
+    const resolved = await customerService.resolveCustomerFromSearch(option)
+
+    const fallbackId = option.partner_id || option.customer_id || option.id
+    const fallbackCustomer: Customer = {
+      partner_id: fallbackId,
+      customer_id: fallbackId,
+      name: option.name || option.text || 'Customer',
+      ref: option.ref || '',
+      customer_qr_ref: option.customer_qr_ref || '',
+      phone: '',
+      mobile: '',
+      email: '',
+      payment_term_id: 0,
+      payment_term_name: '',
+    }
+
+    const customer = resolved || fallbackCustomer
+    orderStore.setCustomer(customer)
+
+    if (customer.payment_term_id) {
+      orderForm.payment_term_id = customer.payment_term_id
+    }
   } catch (error) {
-    console.error('Customer search failed:', error)
-    customers.value = []
-    notifyError('Gagal mencari customer', 'Silakan cek koneksi ke backend lalu coba lagi.')
+    console.error('Customer selection failed:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    notifyError('Gagal memilih customer', `Silakan cek backend. Detail: ${errorMessage}`)
   }
 }
 
-function selectCustomer(customer: Customer) {
-  orderStore.setCustomer(customer)
-  customerSearch.value = customer.name
-  orderForm.payment_term_id = customer.payment_term_id || orderForm.payment_term_id
-  showCustomerDropdown.value = false
+function handleCustomerSearchError(message: string) {
+  notifyError('Gagal mencari customer', `Silakan cek backend. Detail: ${message}`)
 }
 
-function hideCustomerDropdown() {
-  setTimeout(() => {
-    showCustomerDropdown.value = false
-  }, 200)
+function clearSelectedCustomer() {
+  orderStore.setCustomer(null)
+  customerAutocompleteRef.value?.clearInput()
 }
 
 function formatPrice(price: number): string {
@@ -411,7 +406,6 @@ async function submitOrder() {
     vehicle_id: orderForm.vehicle_id,
     sale_order_type: orderForm.sale_order_type,
     note: orderForm.note,
-    business_category_id: 2, // SUSU OLAHAN
   })
 
   // Submit order
@@ -424,14 +418,16 @@ async function submitOrder() {
       router.push('/orders')
     }, 1500)
   } else {
-    notifyError('Gagal membuat draft order', orderStore.submitError || 'Terjadi kesalahan saat submit.')
+    notifyError(
+      'Gagal membuat draft order',
+      orderStore.submitError || 'Terjadi kesalahan saat submit.',
+    )
   }
 }
 
 function resetForm() {
   orderStore.resetDraft()
-  customerSearch.value = ''
-  customers.value = []
+  customerAutocompleteRef.value?.clearInput()
   orderForm.commitment_date = ''
   orderForm.payment_term_id = null
   orderForm.team_id = null
