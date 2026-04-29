@@ -10,6 +10,7 @@ export interface OrderDraft {
   business_category_id: number | null
   store_id: number | null
   vehicle_id: number | null
+  driver_id: number | null
   note: string
   items: Map<number, Product & { quantity: number }>
 }
@@ -32,6 +33,7 @@ export const useOrderStore = defineStore('order', () => {
     business_category_id: null,
     store_id: null,
     vehicle_id: null,
+    driver_id: null,
     note: '',
     items: new Map(),
   })
@@ -103,6 +105,7 @@ export const useOrderStore = defineStore('order', () => {
       business_category_id: null,
       store_id: null,
       vehicle_id: null,
+      driver_id: null,
       note: '',
       items: new Map(),
     }
@@ -160,6 +163,10 @@ export const useOrderStore = defineStore('order', () => {
         delivery_vehicle_id: draft.value.vehicle_id ?? undefined,
         vehicle_id: draft.value.vehicle_id ?? undefined,
         mobil_id: draft.value.vehicle_id ?? undefined,
+        driver_id: draft.value.driver_id ?? undefined,
+        fleet_driver_id: draft.value.driver_id ?? undefined,
+        grt_driver_id: draft.value.driver_id ?? undefined,
+        sopir_id: draft.value.driver_id ?? undefined,
         debug: true,
         note: draft.value.note,
         grid_lines: gridLines,
@@ -175,6 +182,7 @@ export const useOrderStore = defineStore('order', () => {
         business_category_id: draft.value.business_category_id,
         store_id: draft.value.store_id,
         vehicle_id: draft.value.vehicle_id,
+        driver_id: draft.value.driver_id,
       })
       console.log('Payload:', payload)
       console.log('Products Debug:', productDebug)

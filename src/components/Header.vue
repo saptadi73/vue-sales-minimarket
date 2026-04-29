@@ -3,7 +3,9 @@
     <div class="container mx-auto px-4 py-4 flex items-center justify-between">
       <!-- Logo -->
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden">
+        <div
+          class="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden"
+        >
           <img :src="appIcon" alt="Sales Minimarket" class="w-full h-full object-contain" />
         </div>
         <div>

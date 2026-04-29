@@ -26,6 +26,10 @@ function summarizePayloadForDebug(payload: CreateOrderPayload) {
     delivery_vehicle_id: payload.delivery_vehicle_id,
     vehicle_id: payload.vehicle_id,
     mobil_id: payload.mobil_id,
+    driver_id: payload.driver_id,
+    fleet_driver_id: payload.fleet_driver_id,
+    grt_driver_id: payload.grt_driver_id,
+    sopir_id: payload.sopir_id,
     debug: payload.debug,
     grid_lines_count: payload.grid_lines?.length || 0,
     product_ids: (payload.grid_lines || []).map((line) => line.product_id),
@@ -130,6 +134,15 @@ function normalizeBackendOrderError(message: string): string {
   }
   if (lower.includes('store_id') || lower.includes('toko_id') || lower.includes('store')) {
     return 'Toko pengirim tidak valid. Pastikan toko masih aktif di master data Odoo.'
+  }
+  if (
+    lower.includes('driver_id') ||
+    lower.includes('fleet_driver_id') ||
+    lower.includes('grt_driver_id') ||
+    lower.includes('sopir_id') ||
+    lower.includes('driver')
+  ) {
+    return 'Driver belum terisi. Pastikan kendaraan memiliki default driver di Fleet Odoo atau tambahkan mapping driver pada frontend.'
   }
   if (
     lower.includes('delivery_vehicle_id') ||
@@ -285,6 +298,16 @@ export const orderService = {
     }
     if (!payload.delivery_vehicle_id && !payload.vehicle_id && !payload.mobil_id) {
       errors.push('Kendaraan pengirim harus dipilih')
+    }
+    if (
+      !payload.driver_id &&
+      !payload.fleet_driver_id &&
+      !payload.grt_driver_id &&
+      !payload.sopir_id
+    ) {
+      errors.push(
+        'Driver pengirim harus tersedia. Pastikan kendaraan memiliki default driver di Fleet Odoo.',
+      )
     }
     if (!payload.payment_term_id) {
       errors.push('Syarat pembayaran harus dipilih')

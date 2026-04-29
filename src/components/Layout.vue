@@ -6,7 +6,9 @@
     >
       <!-- Logo -->
       <div class="p-6 flex items-center gap-3 border-b border-blue-700">
-        <div class="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden">
+        <div
+          class="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden"
+        >
           <img :src="appIcon" alt="Sales Minimarket" class="w-full h-full object-contain" />
         </div>
         <div>

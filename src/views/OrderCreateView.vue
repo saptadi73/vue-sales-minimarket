@@ -240,8 +240,21 @@ const orderForm = reactive({
   payment_term_id: null as number | null,
   store_id: null as number | null,
   vehicle_id: null as number | null,
+  driver_id: null as number | null,
   note: '',
 })
+
+function resolveVehicleDriverId(vehicle: Vehicle | undefined): number | null {
+  if (!vehicle) return null
+
+  return (
+    vehicle.fleet_driver_id ||
+    vehicle.grt_driver_id ||
+    vehicle.driver_id ||
+    vehicle.sopir_id ||
+    null
+  )
+}
 
 function formatLocalDateTimeForInput(date: Date): string {
   const year = date.getFullYear()
@@ -371,12 +384,26 @@ async function submitOrder() {
     return
   }
 
+  const selectedVehicle = vehicles.value.find((vehicle) => {
+    const id = vehicle.delivery_vehicle_id || vehicle.vehicle_id || vehicle.mobil_id
+    return id === orderForm.vehicle_id
+  })
+  orderForm.driver_id = resolveVehicleDriverId(selectedVehicle)
+
+  if (!orderForm.driver_id) {
+    orderStore.submitError =
+      'Driver kendaraan belum tersedia. Pastikan kendaraan memiliki default driver di Fleet Odoo.'
+    notifyError('Driver wajib diisi', orderStore.submitError)
+    return
+  }
+
   // Update order metadata
   orderStore.setOrderMetadata({
     commitment_date: orderForm.commitment_date,
     payment_term_id: orderForm.payment_term_id,
     store_id: orderForm.store_id,
     vehicle_id: orderForm.vehicle_id,
+    driver_id: orderForm.driver_id,
     note: orderForm.note,
   })
 
@@ -404,6 +431,7 @@ function resetForm() {
   orderForm.payment_term_id = null
   orderForm.store_id = null
   orderForm.vehicle_id = null
+  orderForm.driver_id = null
   orderForm.note = ''
 }
 </script>

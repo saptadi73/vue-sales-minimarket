@@ -161,6 +161,9 @@ export interface Vehicle {
   frontend_vehicle_id?: number
   vehicle_id: number
   mobil_id?: number
+  fleet_driver_id?: number
+  grt_driver_id?: number
+  sopir_id?: number
   name: string
   code: string
   vehicle_type?: string
@@ -199,6 +202,10 @@ export interface CreateOrderPayload {
   delivery_vehicle_id?: number
   vehicle_id?: number
   mobil_id?: number
+  driver_id?: number
+  fleet_driver_id?: number
+  grt_driver_id?: number
+  sopir_id?: number
   debug?: boolean
   note?: string
   grid_lines?: OrderLineItem[]
