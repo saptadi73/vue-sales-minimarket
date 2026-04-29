@@ -42,6 +42,8 @@ Dokumentasi lengkap dari semua fitur dalam aplikasi Sales Minimarket Frontend.
 
 ## 📋 Order Management
 
+Bagian ini adalah dokumentasi versi fungsional (untuk user bisnis/QA) berdasarkan perilaku aplikasi saat ini.
+
 ### Order Creation Features
 
 #### Customer Search & Selection
@@ -53,12 +55,20 @@ Dokumentasi lengkap dari semua fitur dalam aplikasi Sales Minimarket Frontend.
 
 #### Order Details
 
-- **Commitment Date**: Tanggal pengiriman yang diinginkan
-- **Payment Terms**: Pilih syarat pembayaran (30 hari, 45 hari, dll)
-- **Sales Team**: Pilih team yang handle order
-- **Order Type**: Pilih tipe order (reguler, kering, partus, silase)
-- **Notes**: Tambah catatan untuk order
-- **Optional Fields**: Store, vehicle untuk routing (optional)
+- **Commitment Date**: Tanggal & jam pengiriman yang diinginkan
+- **Payment Terms**: Pilih syarat pembayaran
+- **Store**: Pilih toko pengirim
+- **Vehicle**: Pilih kendaraan pengirim
+- **Notes**: Tambah catatan untuk order (opsional)
+
+Aturan validasi utama:
+
+- Customer wajib dipilih
+- Commitment date wajib diisi
+- Payment term wajib dipilih
+- Store wajib dipilih
+- Vehicle wajib dipilih
+- Minimal 1 produk memiliki quantity > 0
 
 #### Product Grid Features
 
@@ -75,6 +85,11 @@ Dokumentasi lengkap dari semua fitur dalam aplikasi Sales Minimarket Frontend.
 - **Confirmation**: Submit button menampilkan loading state
 - **Success**: Auto-redirect ke orders list setelah sukses
 - **Error Handling**: Toast notifications untuk errors
+
+Catatan kompatibilitas backend:
+
+- Nilai tanggal kirim dikirim sebagai `commitment_date` dengan format `YYYY-MM-DD HH:mm`
+- Sistem otomatis menormalisasi nilai dari input browser (`YYYY-MM-DDTHH:mm`) sebelum submit
 
 ## 📊 Report & Analytics
 
@@ -202,7 +217,7 @@ Dokumentasi lengkap dari semua fitur dalam aplikasi Sales Minimarket Frontend.
 
 ### Order Endpoints
 
-- `POST /api/sales/susu-olahan/draft-order` - Create order with automatic shipping
+- `POST /api/sales/susu-olahan/draft-order` - Create draft order with automatic fleet booking
 - `POST /api/sales/minimarket/draft-order` - Create minimarket order
 
 ### Report Endpoints
@@ -295,6 +310,6 @@ All features documented in:
 
 ---
 
-**Version**: 1.1.0  
-**Last Updated**: April 26, 2026  
+**Version**: 1.1.1  
+**Last Updated**: April 29, 2026  
 **Status**: ✅ Production Ready

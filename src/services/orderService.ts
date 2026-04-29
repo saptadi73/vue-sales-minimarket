@@ -1,7 +1,18 @@
 import { postJsonRpc } from './httpClient'
 import { API_CONFIG } from '@/config/api'
-import type { CreateOrderPayload, OrderResponse } from '@/types'
+import type { CreateOrderPayload, OrderResponse, SalesOrderListResponse } from '@/types'
 import { getApiBaseUrl } from '@/utils/apiUrl'
+
+export interface GetSalesOrdersParams {
+  business_category_id?: number
+  frontend_only?: boolean
+  include_lines?: boolean
+  include_accounting?: boolean
+  date_from?: string
+  date_to?: string
+  limit?: number
+  offset?: number
+}
 
 function summarizePayloadForDebug(payload: CreateOrderPayload) {
   return {
@@ -9,14 +20,12 @@ function summarizePayloadForDebug(payload: CreateOrderPayload) {
     customer_qr_ref: payload.customer_qr_ref,
     commitment_date: payload.commitment_date,
     payment_term_id: payload.payment_term_id,
-    team_id: payload.team_id,
     business_category_id: payload.business_category_id,
     store_id: payload.store_id,
     toko_id: payload.toko_id,
     delivery_vehicle_id: payload.delivery_vehicle_id,
     vehicle_id: payload.vehicle_id,
     mobil_id: payload.mobil_id,
-    sale_order_type: payload.sale_order_type,
     debug: payload.debug,
     grid_lines_count: payload.grid_lines?.length || 0,
     product_ids: (payload.grid_lines || []).map((line) => line.product_id),
@@ -119,9 +128,6 @@ function normalizeBackendOrderError(message: string): string {
   if (lower.includes('payment_term') || lower.includes('syarat pembayaran')) {
     return 'Syarat pembayaran tidak valid. Pilih payment term yang tersedia di Odoo.'
   }
-  if (lower.includes('team_id') || lower.includes('team sales') || lower.includes('sales team')) {
-    return 'Team sales tidak valid. Pilih team yang sesuai dengan akses user.'
-  }
   if (lower.includes('store_id') || lower.includes('toko_id') || lower.includes('store')) {
     return 'Toko pengirim tidak valid. Pastikan toko masih aktif di master data Odoo.'
   }
@@ -133,9 +139,6 @@ function normalizeBackendOrderError(message: string): string {
     lower.includes('vehicle')
   ) {
     return 'Kendaraan pengirim tidak valid. Pastikan kendaraan masih aktif di Fleet Odoo.'
-  }
-  if (lower.includes('sale_order_type')) {
-    return 'Tipe sales order tidak valid untuk business category ini.'
   }
   if (
     lower.includes('grid_lines') ||
@@ -176,6 +179,64 @@ export const orderService = {
     return submitOrderRequest(API_CONFIG.endpoints.susuOlahanDraftOrder, payload)
   },
 
+  async getSusuOlahanOrders(
+    params: GetSalesOrdersParams = {},
+  ): Promise<SalesOrderListResponse | null> {
+    try {
+      return await postJsonRpc<SalesOrderListResponse>(API_CONFIG.endpoints.susuOlahanOrders, {
+        frontend_only: params.frontend_only,
+        include_lines: params.include_lines ?? false,
+        include_accounting: params.include_accounting ?? true,
+        business_category_id: params.business_category_id,
+        date_from: params.date_from,
+        date_to: params.date_to,
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      })
+    } catch (error) {
+      console.error('Get susu olahan orders error:', error)
+      return null
+    }
+  },
+
+  async getMinimarketOrders(
+    params: GetSalesOrdersParams = {},
+  ): Promise<SalesOrderListResponse | null> {
+    try {
+      return await postJsonRpc<SalesOrderListResponse>(API_CONFIG.endpoints.minimarketOrders, {
+        frontend_only: params.frontend_only,
+        include_lines: params.include_lines ?? false,
+        include_accounting: params.include_accounting ?? true,
+        business_category_id: params.business_category_id,
+        date_from: params.date_from,
+        date_to: params.date_to,
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      })
+    } catch (error) {
+      console.error('Get minimarket orders error:', error)
+      return null
+    }
+  },
+
+  async getOrders(params: GetSalesOrdersParams = {}): Promise<SalesOrderListResponse | null> {
+    try {
+      return await postJsonRpc<SalesOrderListResponse>(API_CONFIG.endpoints.salesOrders, {
+        frontend_only: params.frontend_only,
+        include_lines: params.include_lines ?? false,
+        include_accounting: params.include_accounting ?? true,
+        business_category_id: params.business_category_id,
+        date_from: params.date_from,
+        date_to: params.date_to,
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      })
+    } catch (error) {
+      console.error('Get generic orders error:', error)
+      return null
+    }
+  },
+
   /**
    * Format order payload dari grid lines
    */
@@ -193,14 +254,12 @@ export const orderService = {
       customer_qr_ref: data.customer_qr_ref,
       commitment_date: data.commitment_date,
       payment_term_id: data.payment_term_id,
-      team_id: data.team_id,
       business_category_id: data.business_category_id,
       store_id: data.store_id,
       toko_id: data.toko_id,
       delivery_vehicle_id: data.delivery_vehicle_id,
       vehicle_id: data.vehicle_id,
       mobil_id: data.mobil_id,
-      sale_order_type: data.sale_order_type || 'reguler',
       note: data.note,
       grid_lines: gridLines,
     }
@@ -229,9 +288,6 @@ export const orderService = {
     }
     if (!payload.payment_term_id) {
       errors.push('Syarat pembayaran harus dipilih')
-    }
-    if (!payload.team_id) {
-      errors.push('Team sales harus dipilih')
     }
     const hasItems =
       (payload.grid_lines && payload.grid_lines.length > 0) ||

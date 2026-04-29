@@ -2,6 +2,21 @@
 
 All notable changes to the Sales Minimarket Frontend project will be documented in this file.
 
+## [1.1.1] - April 29, 2026
+
+### 🐛 Bug Fixes (1.1.1)
+
+- Fixed order create datetime mismatch by normalizing `commitment_date` to backend-required format `YYYY-MM-DD HH:mm`
+- Fixed default order datetime initialization to use local time for `datetime-local` input
+
+### 📚 Documentation Updates (1.1.1)
+
+- Updated developer-oriented docs in `SETUP.md` with API contract notes and submit flow
+- Updated functional docs in `FEATURES.md` to match current mandatory fields and validation
+- Added `PANDUAN_FUNGSIONAL_FRONTEND.md` as a frontend-focused companion to functional process documentation
+- Updated `README_ID.md` documentation index to include developer and functional guide split
+- Added `PANDUAN_FUNGSIONAL_TERPADU.md` as cleaned integrated working guide (business process + frontend specifics)
+
 ## [1.1.0] - April 26, 2026
 
 ### ✨ New Features

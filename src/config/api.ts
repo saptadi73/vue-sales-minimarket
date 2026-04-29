@@ -17,10 +17,15 @@ export const API_CONFIG = {
     susuOlahanVehicles: '/api/sales/susu-olahan/vehicles',
     susuOlahanDeliveryReport: '/api/sales/susu-olahan/delivery-report',
     susuOlahanDraftOrder: '/api/sales/susu-olahan/draft-order',
+    susuOlahanOrders: '/api/sales/susu-olahan/orders',
 
     // Minimarket
     minimarketGridProducts: '/api/sales/minimarket/grid-products',
     minimarketDraftOrder: '/api/sales/minimarket/draft-order',
+    minimarketOrders: '/api/sales/minimarket/orders',
+
+    // Generic
+    salesOrders: '/api/sales/orders',
   },
 }
 

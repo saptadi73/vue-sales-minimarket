@@ -60,6 +60,10 @@ export interface GridProductsResponse {
   data: {
     business_category_id?: number
     business_category_name?: string
+    customer_id?: number
+    customer_name?: string
+    pricelist_id?: number
+    pricelist_name?: string
     items: Product[]
     count: number
     columns: ProductGridColumn[]
@@ -189,14 +193,12 @@ export interface CreateOrderPayload {
   customer_qr_ref?: string
   commitment_date: string
   payment_term_id: number
-  team_id: number
   business_category_id?: number
   store_id?: number
   toko_id?: number
   delivery_vehicle_id?: number
   vehicle_id?: number
   mobil_id?: number
-  sale_order_type?: 'reguler' | 'kering' | 'partus' | 'silase'
   debug?: boolean
   note?: string
   grid_lines?: OrderLineItem[]
@@ -225,6 +227,48 @@ export interface OrderResponse {
     vehicle_id?: number
     mobil_id?: number
     vehicle_name?: string
+  }
+}
+
+export interface SalesOrderListItem {
+  order_id?: number
+  sale_order_id?: number
+  id?: number
+  order_number?: string
+  sale_order_name?: string
+  name?: string
+  date_order?: string
+  create_date?: string
+  commitment_date?: string
+  partner_id?: number
+  customer_id?: number
+  partner_name?: string
+  customer_name?: string
+  state?: string
+  approval_state?: string
+  payment_status?: string
+  amount_total?: number
+  total_amount?: number
+  store_id?: number
+  store_name?: string
+  delivery_vehicle_id?: number
+  frontend_vehicle_id?: number
+  vehicle_id?: number
+  mobil_id?: number
+  vehicle_name?: string
+  fleet_booking_id?: number
+  fleet_booking_name?: string
+  fleet_booking_state?: string
+  fleet_driver_id?: number
+  fleet_driver_name?: string
+}
+
+export interface SalesOrderListResponse {
+  status: 'success' | 'error'
+  message?: string
+  data?: {
+    items?: SalesOrderListItem[]
+    count?: number
   }
 }
 

@@ -120,7 +120,7 @@ npm run type-check
 
 **Orders**
 
-- `POST /api/sales/susu-olahan/draft-order` - Create order dengan ongkir
+- `POST /api/sales/susu-olahan/draft-order` - Create draft order dengan booking fleet otomatis
 - `POST /api/sales/minimarket/draft-order` - Create minimarket order
 
 **Reports**

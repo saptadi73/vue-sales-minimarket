@@ -73,7 +73,7 @@ Output akan tersimpan di folder `dist/`
 
 ## 📁 Struktur Proyek
 
-```
+```text
 src/
 ├── assets/
 │   └── css/
@@ -112,6 +112,57 @@ src/
 
 ## 📖 Panduan Penggunaan
 
+## 👨‍💻 Dokumentasi Versi Developer
+
+Bagian ini fokus untuk tim developer agar implementasi frontend tetap konsisten dengan kontrak backend.
+
+### Contract Penting: Format Tanggal Order
+
+- Field `commitment_date` wajib dikirim dalam format: `YYYY-MM-DD HH:mm`
+- Input UI menggunakan `datetime-local` (`YYYY-MM-DDTHH:mm`), sehingga nilai harus dinormalisasi sebelum submit
+- Implementasi normalisasi ada di store order agar semua jalur submit konsisten
+
+Contoh payload yang benar:
+
+```json
+{
+  "partner_id": 123,
+  "customer_qr_ref": "CUST-001",
+  "commitment_date": "2026-04-30 10:00",
+  "payment_term_id": 1,
+  "store_id": 2,
+  "delivery_vehicle_id": 8,
+  "grid_lines": [
+    {
+      "product_id": 1001,
+      "quantity": 5
+    }
+  ]
+}
+```
+
+Jika format tanggal tidak sesuai, backend dapat merespons error seperti:
+`timedata does not match format '%Y-%m-%d %H:%M'`.
+
+### Alur Submit Order (Teknis)
+
+1. Form mengisi metadata order di `OrderCreateView`
+2. Metadata dipindah ke `orderStore` melalui `setOrderMetadata`
+3. `submitOrder()` membentuk payload akhir
+4. `commitment_date` dinormalisasi ke format backend
+5. `orderService` mengirim request JSON-RPC ke endpoint order
+
+### Checklist Developer Sebelum Commit
+
+```bash
+npm run type-check
+npm run build
+```
+
+- Pastikan tidak ada error TypeScript
+- Pastikan build sukses
+- Pastikan alur create order lolos dengan data real backend
+
 ### Login
 
 1. Buka aplikasi di browser
@@ -134,8 +185,8 @@ src/
    - Cari dan pilih Customer (Minimarket)
    - Atur tanggal pengiriman
    - Pilih syarat pembayaran
-   - Pilih team sales
-   - (Optional) Pilih tipe order
+   - Pilih toko pengirim
+   - Pilih kendaraan pengirim
    - (Optional) Tambah catatan
 
 3. **Pilih Produk**:
@@ -190,8 +241,14 @@ Semua endpoint mengikuti format JSON-RPC dan memerlukan session authentication.
 
 ### Orders
 
-- `POST /api/sales/susu-olahan/draft-order` - Create order (dengan ongkir otomatis)
+- `POST /api/sales/susu-olahan/draft-order` - Create draft order (otomatis membuat booking fleet)
 - `POST /api/sales/minimarket/draft-order` - Create minimarket order
+
+Catatan request order:
+
+- `commitment_date` harus `YYYY-MM-DD HH:mm`
+- Minimal 1 item dengan `quantity > 0`
+- Salah satu identitas customer wajib tersedia (`partner_id` atau `customer_qr_ref`)
 
 ### Reports
 
@@ -222,13 +279,13 @@ Semua komponen sudah responsive dan menggunakan mobile-first approach.
 
 ### Mengubah Base URL API
 
-**Opsi 1: Dari Login Page (Recommended)**
+#### Opsi 1: Dari Login Page (Recommended)
 
 - Login page memiliki input field untuk Odoo URL
 - Ketik URL Odoo Anda (contoh: `localhost:8069`)
 - URL akan otomatis tersimpan dan digunakan untuk semua API calls
 
-**Opsi 2: Via Environment Variable**
+#### Opsi 2: Via Environment Variable
 
 - Buka `.env.local` dan ubah `VITE_API_BASE_URL`:
 
@@ -311,6 +368,6 @@ Untuk pertanyaan atau issues, hubungi tim development.
 
 ---
 
-**Dibuat dengan ❤️ untuk Sales Minimarket Susu Olahan**
+Dibuat dengan ❤️ untuk Sales Minimarket Susu Olahan
 
-v1.0.0 - April 2026
+v1.1.1 - April 2026

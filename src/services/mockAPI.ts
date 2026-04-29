@@ -131,6 +131,22 @@ const mockVehicles = [
   },
 ]
 
+const mockOrders = [
+  {
+    order_id: 1001,
+    order_number: 'SO/2026/0001',
+    date_order: '2026-04-26 08:30:00',
+    partner_name: 'Alfamart Cabang A',
+    state: 'draft',
+    amount_total: 145000,
+    store_name: 'Cabang Malang Utara',
+    vehicle_name: 'Toyota Hilux / B 1234 XYZ',
+    fleet_booking_name: 'BOOK/2026/0001',
+    fleet_booking_state: 'confirmed',
+    fleet_driver_name: 'Budi',
+  },
+]
+
 // Setup mock interceptors
 export function setupMockAPI() {
   if (!ENABLE_MOCK_API) return
@@ -232,6 +248,23 @@ export function setupMockAPI() {
               partner_id: 45,
               commitment_date: '2026-04-30 10:00:00',
               total_amount: 145000,
+            },
+          },
+        })
+      }
+
+      // Mock sales orders list endpoint
+      if (
+        config.url.includes('/api/sales/susu-olahan/orders') ||
+        config.url.includes('/api/sales/minimarket/orders') ||
+        config.url.includes('/api/sales/orders')
+      ) {
+        return Promise.resolve({
+          data: {
+            status: 'success',
+            data: {
+              items: mockOrders,
+              count: mockOrders.length,
             },
           },
         })

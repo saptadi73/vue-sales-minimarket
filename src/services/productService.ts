@@ -9,6 +9,9 @@ export interface GetProductsParams {
   category_ids?: number[]
   product_ids?: number[]
   quantities?: Record<string, number>
+  customer_id?: number
+  partner_id?: number
+  customer_qr_ref?: string
 }
 
 export const productService = {
@@ -22,6 +25,9 @@ export const productService = {
       const response = await postJsonRpc<GridProductsResponse>(
         API_CONFIG.endpoints.susuOlahanProducts,
         {
+          customer_id: params.customer_id,
+          partner_id: params.partner_id,
+          customer_qr_ref: params.customer_qr_ref,
           search: params.search || '',
           limit: params.limit || 100,
           offset: params.offset || 0,
@@ -42,6 +48,9 @@ export const productService = {
       const response = await postJsonRpc<GridProductsResponse>(
         API_CONFIG.endpoints.minimarketGridProducts,
         {
+          customer_id: params.customer_id,
+          partner_id: params.partner_id,
+          customer_qr_ref: params.customer_qr_ref,
           search: params.search || '',
           category_ids: params.category_ids || [],
           product_ids: params.product_ids || [],

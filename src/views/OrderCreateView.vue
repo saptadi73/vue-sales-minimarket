@@ -85,23 +85,6 @@
                 </select>
               </div>
 
-              <!-- Team Sales -->
-              <div>
-                <label for="team" class="block text-sm font-medium text-gray-700 mb-2">
-                  Team Sales *
-                </label>
-                <select
-                  v-model.number="orderForm.team_id"
-                  required
-                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="" disabled>Pilih team sales</option>
-                  <option value="1">Team A</option>
-                  <option value="2">Team B</option>
-                  <option value="3">Team C</option>
-                </select>
-              </div>
-
               <!-- Store -->
               <div>
                 <label for="store" class="block text-sm font-medium text-gray-700 mb-2">
@@ -141,22 +124,6 @@
                   >
                     {{ vehicle.name }}
                   </option>
-                </select>
-              </div>
-
-              <!-- Sale Order Type -->
-              <div>
-                <label for="type" class="block text-sm font-medium text-gray-700 mb-2">
-                  Tipe Order
-                </label>
-                <select
-                  v-model="orderForm.sale_order_type"
-                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="reguler">Reguler</option>
-                  <option value="kering">Kering</option>
-                  <option value="partus">Partus</option>
-                  <option value="silase">Silase</option>
                 </select>
               </div>
 
@@ -271,19 +238,27 @@ const totalDistinctProducts = computed(
 const orderForm = reactive({
   commitment_date: '',
   payment_term_id: null as number | null,
-  team_id: null as number | null,
   store_id: null as number | null,
   vehicle_id: null as number | null,
-  sale_order_type: 'reguler' as const,
   note: '',
 })
+
+function formatLocalDateTimeForInput(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
 
 onMounted(async () => {
   // Set default commitment date to tomorrow at 10:00
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   tomorrow.setHours(10, 0, 0, 0)
-  orderForm.commitment_date = tomorrow.toISOString().slice(0, 16)
+  orderForm.commitment_date = formatLocalDateTimeForInput(tomorrow)
 
   await loadMasterData()
 })
@@ -389,7 +364,6 @@ async function submitOrder() {
   if (
     !orderForm.commitment_date ||
     !orderForm.payment_term_id ||
-    !orderForm.team_id ||
     !orderForm.store_id ||
     !orderForm.vehicle_id
   ) {
@@ -401,10 +375,8 @@ async function submitOrder() {
   orderStore.setOrderMetadata({
     commitment_date: orderForm.commitment_date,
     payment_term_id: orderForm.payment_term_id,
-    team_id: orderForm.team_id,
     store_id: orderForm.store_id,
     vehicle_id: orderForm.vehicle_id,
-    sale_order_type: orderForm.sale_order_type,
     note: orderForm.note,
   })
 
@@ -430,10 +402,8 @@ function resetForm() {
   customerAutocompleteRef.value?.clearInput()
   orderForm.commitment_date = ''
   orderForm.payment_term_id = null
-  orderForm.team_id = null
   orderForm.store_id = null
   orderForm.vehicle_id = null
-  orderForm.sale_order_type = 'reguler'
   orderForm.note = ''
 }
 </script>

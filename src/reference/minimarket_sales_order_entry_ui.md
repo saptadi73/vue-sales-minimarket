@@ -154,17 +154,25 @@ Setup customer:
 - `Wilayah Ongkir` tetap bisa dipelihara sebagai data partner legacy, namun tidak digunakan untuk menambah line ongkir di flow minimarket saat ini.
 - Customer akan muncul di endpoint `/api/sales/susu-olahan/customers` dari master customer global. Business Category `SUSU OLAHAN` tidak menjadi syarat filter customer.
 
+Setup akses user:
+
+- User login frontend minimarket wajib memiliki `effective_business_category_ids` yang memuat `SUSU OLAHAN`.
+- Endpoint minimarket/susu olahan menentukan category dari konteks akun user (active/default business category), bukan dari payload request.
+- Jika user tidak memiliki akses kategori tersebut, endpoint minimarket/susu olahan akan menolak request meskipun endpoint dipanggil dengan payload category yang benar.
+
 ## Master Data SUSU OLAHAN
 
 ### `POST /api/sales/susu-olahan/products`
 
 Mengambil produk saleable dengan `Business Category = SUSU OLAHAN`.
+Endpoint ini **wajib** menerima customer terpilih (`customer_id`/`partner_id` atau `customer_qr_ref`) karena harga produk mengikuti pricelist customer tersebut.
 
 Request:
 
 ```json
 {
   "params": {
+    "customer_id": 45,
     "search": "uht",
     "limit": 100,
     "offset": 0
@@ -180,6 +188,10 @@ Response:
   "data": {
     "business_category_id": 2,
     "business_category_name": "SUSU OLAHAN",
+    "customer_id": 45,
+    "customer_name": "Minimarket Cabang A",
+    "pricelist_id": 3,
+    "pricelist_name": "Pricelist Minimarket",
     "items": [
       {
         "product_id": 101,
@@ -187,7 +199,7 @@ Response:
         "barcode": "899000000001",
         "name": "Susu UHT 200ml",
         "category_name": "Susu Kemasan",
-        "list_price": 4500.0,
+        "list_price": 4300.0,
         "uom_name": "Pcs",
         "quantity": 0.0,
         "business_category_id": 2,
@@ -368,7 +380,7 @@ Alias endpoint:
 3. Frontend mengambil produk susu olahan dari `/api/sales/susu-olahan/products` atau `/api/sales/minimarket/grid-products`.
 4. Jika frontend masih memiliki halaman maintenance data legacy ongkir, data referensi bisa diambil dari `/api/sales/susu-olahan/shipping-products`.
 5. Frontend menampilkan produk sebagai sheet/list menurun.
-6. Sales memilih customer minimarket dan mengisi tanggal kirim, payment term, team sales, business category.
+6. Sales memilih customer minimarket dan mengisi tanggal kirim, payment term, toko, dan kendaraan. Team sales mengikuti akun yang login, dan tipe Sales Order default `reguler`.
 7. Sales mengisi quantity pada baris produk.
 8. Frontend mengirim hanya produk dengan quantity lebih dari 0 ke `/api/sales/susu-olahan/draft-order`.
 9. Backend membuat draft quotation Odoo.
@@ -379,11 +391,15 @@ Alias endpoint:
 
 ### `POST /api/sales/minimarket/grid-products`
 
+Endpoint ini khusus flow minimarket SUSU OLAHAN. Backend otomatis memfilter produk `sale_ok` aktif dengan `business_category_id = SUSU OLAHAN`.
+Endpoint ini juga **wajib** menerima customer terpilih (`customer_id`/`partner_id` atau `customer_qr_ref`) agar `list_price` dihitung berdasarkan pricelist customer.
+
 Request:
 
 ```json
 {
   "params": {
+    "customer_id": 45,
     "search": "",
     "category_ids": [],
     "product_ids": [],
@@ -399,11 +415,17 @@ Request:
 
 Field request:
 
+- `customer_id` atau `partner_id` atau `customer_qr_ref`: wajib. Menentukan customer untuk lookup pricelist.
 - `search`: opsional, mencari berdasarkan nama produk, kode produk, atau barcode.
 - `category_ids`: opsional, filter kategori produk. Mendukung child category.
 - `product_ids`: opsional, membatasi hanya produk tertentu.
 - `quantities`: opsional, dipakai jika frontend ingin membuka ulang grid dengan quantity draft lokal.
 - `limit` dan `offset`: pagination.
+
+Catatan:
+
+- Untuk endpoint minimarket/susu olahan, `business_category_id` atau `business_category_name` dari payload tidak menjadi acuan utama. Backend memakai category dari akun user.
+- Frontend harus memilih customer terlebih dahulu sebelum memanggil endpoint list product.
 
 Response:
 
@@ -411,6 +433,10 @@ Response:
 {
   "status": "success",
   "data": {
+    "customer_id": 45,
+    "customer_name": "Minimarket Cabang A",
+    "pricelist_id": 3,
+    "pricelist_name": "Pricelist Minimarket",
     "items": [
       {
         "product_id": 101,
@@ -419,7 +445,7 @@ Response:
         "name": "Susu UHT 200ml",
         "category_id": 7,
         "category_name": "Susu Kemasan",
-        "list_price": 4500.0,
+        "list_price": 4300.0,
         "uom_id": 1,
         "uom_name": "Pcs",
         "currency_id": 13,
@@ -462,9 +488,6 @@ Endpoint ini menerima dua bentuk payload quantity.
     "customer_qr_ref": "CUSTQR2603-000001",
     "commitment_date": "2026-04-30 10:00:00",
     "payment_term_id": 4,
-    "team_id": 3,
-    "business_category_id": 2,
-    "sale_order_type": "reguler",
     "note": "PO minimarket cabang A",
     "grid_lines": [
       {"product_id": 101, "quantity": 24},
@@ -483,8 +506,6 @@ Endpoint ini menerima dua bentuk payload quantity.
     "partner_id": 45,
     "commitment_date": "2026-04-30 10:00:00",
     "payment_term_id": 4,
-    "team_id": 3,
-    "business_category_id": 2,
     "quantities": {
       "101": 24,
       "102": 12,
@@ -503,11 +524,16 @@ Field utama:
 - `payment_term_id`: wajib.
 - `store_id` atau `toko_id`: **wajib** untuk endpoint minimarket.
 - `delivery_vehicle_id` atau `vehicle_id` atau `mobil_id`: **wajib** untuk endpoint minimarket.
-- `team_id`: direkomendasikan agar business category dan approval jelas.
-- `business_category_id`: direkomendasikan, atau bisa otomatis dari `team_id`.
-- `sale_order_type`: opsional. Jika kosong, backend memakai `reguler`. Nilai yang diizinkan: `reguler`, `kering`, `partus`, `silase`.
+- `fleet_driver_id` atau `grt_driver_id` atau `sopir_id`: opsional jika kendaraan sudah punya Driver Default Fleet; kirim field ini jika frontend menyediakan pilihan sopir.
+- `departure_datetime` atau `delivery_datetime` atau `booking_datetime`: opsional; jika kosong, booking fleet memakai `commitment_date`.
+- `departure_region_id` dan `destination_region_id`: opsional; jika kosong, backend mengambil region dari toko/customer atau membuat region otomatis.
+- `team_id`: opsional. Jika tidak dikirim, backend otomatis memakai Team Sales dari user yang login.
+- `business_category_id`: opsional. Jika tidak dikirim, backend otomatis mengambil Business Category dari Team Sales user.
+- `sale_order_type`: tidak perlu dikirim dari frontend minimarket/susu olahan. Backend otomatis memakai `reguler`.
 - `grid_lines`: daftar produk dari sheet.
 - `quantities`: map `product_id -> quantity`, cocok untuk state object Vue.
+
+Setelah draft Sales Order berhasil dibuat, backend langsung membuat `grt.fleet.booking` dengan tanggal/jam, mobil, dan sopir yang dipilih. Booking dibuat dalam status `confirmed` secara default. Jika frontend perlu membuat booking tetap draft, kirim `fleet_booking_state: "draft"`.
 
 ### `POST /api/sales/susu-olahan/draft-order`
 
@@ -525,9 +551,11 @@ Contoh request:
     "payment_term_id": 4,
     "store_id": 1,
     "delivery_vehicle_id": 5,
-    "team_id": 3,
+    "fleet_driver_id": 7,
+    "departure_datetime": "2026-04-30 10:00:00",
+    "departure_region_id": 11,
+    "destination_region_id": 12,
     "debug": true,
-    "sale_order_type": "reguler",
     "note": "PO susu olahan cabang A",
     "quantities": {
       "101": 24,
@@ -566,6 +594,16 @@ Response sukses mengikuti response endpoint draft order existing:
     "vehicle_id": 5,
     "mobil_id": 5,
     "vehicle_name": "Toyota Hilux / B 1234 XYZ",
+    "fleet_booking_id": 9001,
+    "fleet_booking_name": "BOOK/2026/0001",
+    "fleet_booking_state": "confirmed",
+    "fleet_driver_id": 7,
+    "fleet_driver_name": "Budi",
+    "departure_datetime": "2026-04-30 10:00:00",
+    "departure_region_id": 11,
+    "departure_region_name": "Gudang Toko A",
+    "destination_region_id": 12,
+    "destination_region_name": "Minimarket Cabang A",
     "wilayah_id": false,
     "wilayah_name": false,
     "shipping_product_id": false,
@@ -579,10 +617,55 @@ Response sukses mengikuti response endpoint draft order existing:
 
 - Draft order dibuat sebagai `is_frontend_order = True`.
 - Default Terms and Conditions endpoint ini adalah `sales order minimarket`.
+- Draft order minimarket dan susu olahan otomatis membuat booking fleet.
+- `business_category_id` Sales Order tetap mengikuti Business Category sales/minimarket, sedangkan Business Category Jasa booking mengikuti Business Category armada pada kendaraan bila tersedia.
+
+## List Sales Order untuk Frontend
+
+Gunakan endpoint berikut untuk membuka daftar Sales Order di frontend minimarket:
+
+- `POST /api/sales/minimarket/orders`
+- `POST /api/sales/susu-olahan/orders`
+- alternatif umum: `POST /api/sales/orders`
+
+Contoh request:
+
+```json
+{
+  "params": {
+    "business_category_id": 2,
+    "frontend_only": true,
+    "date_from": "2026-04-01",
+    "date_to": "2026-04-30",
+    "include_lines": true,
+    "include_accounting": true,
+    "limit": 50,
+    "offset": 0
+  }
+}
+```
+
+Response item memuat:
+
+- identitas SO, customer, state, approval state, payment status
+- `business_category_id`, `business_category_name`, `analytic_account_id`, `analytic_account_name`
+- toko, mobil, booking fleet, sopir
+- `lines` jika `include_lines = true`
+- `accounting` jika `include_accounting = true`; angka receivable/payable difilter ke Business Category SO
+
+## Master Fleet untuk Dropdown
+
+Endpoint yang dipakai:
+
+- toko: `POST /api/sales/susu-olahan/stores`
+- mobil dan default sopir: `POST /api/sales/susu-olahan/vehicles`
+- region/rute: `POST /api/sales/susu-olahan/fleet-regions`
+
+Pada dropdown mobil, gunakan `fleet_driver_id` atau `grt_driver_id` dari response sebagai default sopir. Jika frontend menyediakan pilihan sopir manual, kirim nilai itu di payload draft order.
 - Default Terms and Conditions endpoint susu olahan adalah `sales order susu olahan`.
 - Jika frontend mengirim `note`, backend menggabungkan default note dan note frontend.
+- Frontend minimarket/susu olahan tidak perlu menampilkan pilihan tipe Sales Order.
 - Jika `sale_order_type` kosong, backend memakai `reguler`.
-- Jika business category mewajibkan `sale_order_type`, nilai tersebut tetap tervalidasi oleh backend.
 - Endpoint susu olahan menolak produk yang Business Category produknya bukan `SUSU OLAHAN`.
 - Endpoint ini memakai mekanisme order line, price, tax, dan approval yang sama dengan endpoint draft order existing.
 - Tidak ada penambahan line ongkir otomatis di flow minimarket/susu olahan saat ini.
@@ -603,6 +686,8 @@ export async function postJsonRpc(url, params) {
 
 export async function fetchMinimarketGridProducts(baseUrl, filters = {}) {
   return postJsonRpc(`${baseUrl}/api/sales/minimarket/grid-products`, {
+    customer_id: filters.customerId,
+    customer_qr_ref: filters.customerQrRef,
     search: filters.search || "",
     category_ids: filters.categoryIds || [],
     quantities: filters.quantities || {},
@@ -628,9 +713,6 @@ export async function createMinimarketDraftOrder(baseUrl, form, quantities) {
     payment_term_id: form.paymentTermId,
     store_id: form.storeId,
     delivery_vehicle_id: form.vehicleId,
-    team_id: form.teamId,
-    business_category_id: form.businessCategoryId,
-    sale_order_type: form.saleOrderType || "reguler",
     note: form.note,
     quantities,
   });
@@ -644,9 +726,6 @@ export async function createSusuOlahanDraftOrder(baseUrl, form, quantities) {
     payment_term_id: form.paymentTermId,
     store_id: form.storeId,
     delivery_vehicle_id: form.vehicleId,
-    team_id: form.teamId,
-    business_category_id: form.businessCategoryId,
-    sale_order_type: form.saleOrderType || "reguler",
     note: form.note,
     quantities,
   });
@@ -669,7 +748,7 @@ Dengan struktur ini, frontend tidak perlu membentuk `sale.order.line` Odoo. Back
 
 ### `POST /api/sales/susu-olahan/stores`
 
-Mengambil daftar toko/cabang (`sale.frontend.store`) untuk dropdown pilihan toko pengirim.
+Mengambil daftar toko/cabang (`grt.fleet.store`) untuk dropdown pilihan toko pengirim.
 
 Request:
 
@@ -705,7 +784,8 @@ Response:
         "partner_id": 12,
         "partner_name": "PT Contoh",
         "phone": "0341-000000",
-        "street": "Jl. Contoh No. 1"
+        "street": "Jl. Contoh No. 1",
+        "outlet_count": 3
       }
     ],
     "count": 1
@@ -716,7 +796,8 @@ Response:
 Catatan:
 
 - `store_id` dan `toko_id` bernilai sama, keduanya bisa dipakai sebagai key payload di `draft-order`.
-- Toko aktif ditampilkan secara default. Untuk mengelola toko, buka menu `Sales > Frontend Stores` di Odoo.
+- Toko aktif ditampilkan secara default. Untuk mengelola toko, buka menu `Fleet Management > Master Data > Toko Fleet` dan `Outlet Fleet` di Odoo.
+- Nilai toko yang dipilih frontend tetap disimpan di field Sales Order `frontend_store_id` (field Toko pada form Sales Order tidak dihilangkan).
 
 ### `POST /api/sales/susu-olahan/vehicles`
 

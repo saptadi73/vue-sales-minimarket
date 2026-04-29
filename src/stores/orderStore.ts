@@ -7,13 +7,21 @@ export interface OrderDraft {
   customer: Customer | null
   commitment_date: string
   payment_term_id: number | null
-  team_id: number | null
   business_category_id: number | null
   store_id: number | null
   vehicle_id: number | null
-  sale_order_type: 'reguler' | 'kering' | 'partus' | 'silase'
   note: string
   items: Map<number, Product & { quantity: number }>
+}
+
+function formatCommitmentDateForBackend(value: string): string {
+  if (!value) {
+    return value
+  }
+
+  // UI uses datetime-local (YYYY-MM-DDTHH:mm), backend expects YYYY-MM-DD HH:mm.
+  const normalized = value.trim().replace('T', ' ')
+  return normalized.length > 16 ? normalized.slice(0, 16) : normalized
 }
 
 export const useOrderStore = defineStore('order', () => {
@@ -21,11 +29,9 @@ export const useOrderStore = defineStore('order', () => {
     customer: null,
     commitment_date: '',
     payment_term_id: null,
-    team_id: null,
     business_category_id: null,
     store_id: null,
     vehicle_id: null,
-    sale_order_type: 'reguler',
     note: '',
     items: new Map(),
   })
@@ -94,11 +100,9 @@ export const useOrderStore = defineStore('order', () => {
       customer: null,
       commitment_date: '',
       payment_term_id: null,
-      team_id: null,
       business_category_id: null,
       store_id: null,
       vehicle_id: null,
-      sale_order_type: 'reguler',
       note: '',
       items: new Map(),
     }
@@ -148,16 +152,14 @@ export const useOrderStore = defineStore('order', () => {
       const payload: CreateOrderPayload = {
         partner_id: draft.value.customer?.partner_id,
         customer_qr_ref: draft.value.customer?.customer_qr_ref,
-        commitment_date: draft.value.commitment_date,
+        commitment_date: formatCommitmentDateForBackend(draft.value.commitment_date),
         payment_term_id: draft.value.payment_term_id || 0,
-        team_id: draft.value.team_id || 0,
         business_category_id: draft.value.business_category_id ?? undefined,
         store_id: draft.value.store_id ?? undefined,
         toko_id: draft.value.store_id ?? undefined,
         delivery_vehicle_id: draft.value.vehicle_id ?? undefined,
         vehicle_id: draft.value.vehicle_id ?? undefined,
         mobil_id: draft.value.vehicle_id ?? undefined,
-        sale_order_type: draft.value.sale_order_type,
         debug: true,
         note: draft.value.note,
         grid_lines: gridLines,
@@ -170,11 +172,9 @@ export const useOrderStore = defineStore('order', () => {
       console.log('Order Metadata:', {
         commitment_date: draft.value.commitment_date,
         payment_term_id: draft.value.payment_term_id,
-        team_id: draft.value.team_id,
         business_category_id: draft.value.business_category_id,
         store_id: draft.value.store_id,
         vehicle_id: draft.value.vehicle_id,
-        sale_order_type: draft.value.sale_order_type,
       })
       console.log('Payload:', payload)
       console.log('Products Debug:', productDebug)

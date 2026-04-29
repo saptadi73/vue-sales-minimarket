@@ -9,12 +9,13 @@
             type="text"
             placeholder="Cari produk (nama/kode/barcode)..."
             @input="debouncedSearch"
+            :disabled="!hasSelectedCustomer"
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
         <button
           @click="refresh"
-          :disabled="isLoading"
+          :disabled="isLoading || !hasSelectedCustomer"
           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition"
         >
           <span v-if="isLoading" class="flex items-center gap-2">
@@ -35,6 +36,31 @@
 
     <!-- Products Grid -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div
+        v-if="selectedCustomer"
+        class="mx-4 mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800"
+      >
+        <p>
+          Customer: <span class="font-semibold">{{ selectedCustomer.name }}</span>
+        </p>
+        <p>
+          Pricelist aktif:
+          <span class="font-semibold">{{
+            currentPricelistName || 'Pricelist customer belum terdeteksi'
+          }}</span>
+        </p>
+      </div>
+
+      <div
+        v-if="!hasSelectedCustomer"
+        class="mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+      >
+        <p class="text-sm text-amber-800">
+          Pilih customer terlebih dahulu untuk menampilkan daftar produk dan harga sesuai pricelist
+          customer.
+        </p>
+      </div>
+
       <div v-if="loadError" class="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
         <p class="text-sm text-red-800">{{ loadError }}</p>
       </div>
@@ -150,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import productService from '@/services/productService'
 import { useOrderStore } from '@/stores/orderStore'
 import type { Product } from '@/types'
@@ -165,7 +191,11 @@ const totalCount = ref(0)
 const loadError = ref<string | null>(null)
 const currentBusinessCategoryId = ref<number | null>(null)
 const currentBusinessCategoryName = ref('')
+const currentPricelistName = ref('')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+const selectedCustomer = computed(() => orderStore.draft.customer)
+const hasSelectedCustomer = computed(() => Boolean(selectedCustomer.value?.partner_id))
 
 function formatPrice(price: number): string {
   return productService.formatPrice(price)
@@ -181,6 +211,10 @@ function updateQuantity(product: Product, quantity: number) {
 }
 
 function debouncedSearch() {
+  if (!hasSelectedCustomer.value) {
+    return
+  }
+
   if (searchTimeout) {
     clearTimeout(searchTimeout)
   }
@@ -191,6 +225,14 @@ function debouncedSearch() {
 }
 
 async function loadProducts() {
+  if (!selectedCustomer.value) {
+    products.value = []
+    totalCount.value = 0
+    currentPricelistName.value = ''
+    loadError.value = null
+    return
+  }
+
   isLoading.value = true
   loadError.value = null
 
@@ -200,6 +242,9 @@ async function loadProducts() {
 
   try {
     const response = await productService.getGridProducts({
+      customer_id: selectedCustomer.value.customer_id,
+      partner_id: selectedCustomer.value.partner_id,
+      customer_qr_ref: selectedCustomer.value.customer_qr_ref,
       search: searchQuery.value,
       offset: offset.value,
       limit: limit.value,
@@ -216,6 +261,7 @@ async function loadProducts() {
 
     products.value = response.data.items
     totalCount.value = response.data.count
+    currentPricelistName.value = response.data.pricelist_name || ''
 
     if (typeof response.data.business_category_id === 'number') {
       currentBusinessCategoryId.value = response.data.business_category_id
@@ -230,6 +276,9 @@ async function loadProducts() {
     // Fallback ke endpoint susu-olahan/products jika grid-products sedang bermasalah.
     try {
       const fallbackResponse = await productService.getSusuOlahanProducts({
+        customer_id: selectedCustomer.value.customer_id,
+        partner_id: selectedCustomer.value.partner_id,
+        customer_qr_ref: selectedCustomer.value.customer_qr_ref,
         search: searchQuery.value,
         offset: offset.value,
         limit: limit.value,
@@ -244,6 +293,7 @@ async function loadProducts() {
 
       products.value = fallbackResponse.data.items
       totalCount.value = fallbackResponse.data.count
+      currentPricelistName.value = fallbackResponse.data.pricelist_name || ''
 
       if (typeof fallbackResponse.data.business_category_id === 'number') {
         currentBusinessCategoryId.value = fallbackResponse.data.business_category_id
@@ -283,10 +333,22 @@ function previousPage() {
 }
 
 function refresh() {
+  if (!hasSelectedCustomer.value) {
+    return
+  }
+
   offset.value = 0
   loadProducts()
 }
 
-// Load initial products
-loadProducts()
+watch(
+  () => selectedCustomer.value?.partner_id,
+  () => {
+    orderStore.clearItems()
+    offset.value = 0
+    searchQuery.value = ''
+    loadProducts()
+  },
+  { immediate: true },
+)
 </script>

@@ -79,7 +79,7 @@ Output terletak di folder `/dist`
 
 ## 📋 Struktur Folder
 
-```
+```text
 src/
 ├── views/              # 5 halaman utama
 │   ├── LoginView.vue
@@ -198,7 +198,12 @@ Pastikan Odoo backend sudah configured untuk:
 ## 📚 File-File Dokumentasi
 
 - `SETUP.md` - Setup & usage guide lengkap
+- `FEATURES.md` - Dokumentasi fungsional aplikasi
+- `PANDUAN_FUNGSIONAL_FRONTEND.md` - Pelengkap panduan fungsional khusus sisi frontend
+- `PANDUAN_FUNGSIONAL_MINIMARKET_FLEET_TRANSPORT.docx` - Panduan fungsional lintas proses (Sales, Transport, Fleet)
+- `PANDUAN_FUNGSIONAL_TERPADU.md` - Panduan kerja terpadu (lintas proses + detail frontend)
 - `PROJECT_COMPLETE.md` - Project summary
+- `CHANGELOG.md` - Riwayat perubahan versi
 - `.env.example` - Environment template
 - `package.json` - Dependencies & scripts
 - `tsconfig.json` - TypeScript configuration
@@ -216,7 +221,7 @@ npm run format       # Format code dengan Prettier
 
 ## 🎯 User Flow
 
-### Untuk End Users:
+### Untuk End Users
 
 1. **Buka aplikasi** → Halaman login
 2. **Login** → Input Odoo credentials
@@ -225,7 +230,7 @@ npm run format       # Format code dengan Prettier
 5. **Lihat Order** → Daftar orders yang sudah dibuat
 6. **View Report** → Filter & analyze data
 
-### Login Test Credentials:
+### Login Test Credentials
 
 Gunakan Odoo user Anda:
 
@@ -287,7 +292,7 @@ Aplikasi **Sales Minimarket Frontend** ini sudah:
 - ✅ Modern & elegant UI
 - ✅ Ready untuk deployment
 
-**Aplikasi Anda siap digunakan! Selamat! 🚀**
+Aplikasi Anda siap digunakan. Selamat.
 
 ---
 
