@@ -6,10 +6,8 @@
     >
       <!-- Logo -->
       <div class="p-6 flex items-center gap-3 border-b border-blue-700">
-        <div
-          class="w-10 h-10 bg-white rounded-lg flex items-center justify-center font-bold text-blue-600"
-        >
-          SM
+        <div class="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden">
+          <img :src="appIcon" alt="Sales Minimarket" class="w-full h-full object-contain" />
         </div>
         <div>
           <h1 class="font-bold text-lg">Sales</h1>
@@ -115,6 +113,7 @@
 import Header from './Header.vue'
 import { useAuthStore } from '@/stores/authStore'
 import { useRouter } from 'vue-router'
+import appIcon from '@/assets/icon/icon_minimarket2.png'
 
 const authStore = useAuthStore()
 const router = useRouter()
