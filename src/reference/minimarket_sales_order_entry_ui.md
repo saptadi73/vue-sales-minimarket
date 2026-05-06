@@ -859,6 +859,24 @@ Response utama:
       {"product_id": 101, "quantity": 30, "price_unit": 4500.0},
       {"product_id": 103, "quantity": 6, "price_unit": 5000.0}
     ],
+    "grid_items": [
+      {
+        "product_id": 101,
+        "default_code": "UHT-200",
+        "name": "Susu UHT 200ml",
+        "uom_name": "Pcs",
+        "list_price": 4500.0,
+        "quantity": 30.0
+      },
+      {
+        "product_id": 102,
+        "default_code": "UHT-1000",
+        "name": "Susu UHT 1L",
+        "uom_name": "Pcs",
+        "list_price": 15000.0,
+        "quantity": 0.0
+      }
+    ],
     "lines": [
       {
         "line_id": 90001,
@@ -878,6 +896,8 @@ Catatan:
 
 - `can_edit` dan `can_update` hanya `true` untuk state `draft` dan `sent`.
 - Frontend dapat memakai `quantities` untuk mengisi ulang state grid Vue, lalu submit revisi ke `update_endpoint`.
+- `grid_items`, `items`, dan `products` berisi semua produk saleable kategori SO dengan `quantity` terisi dari Sales Order; produk yang tidak ada di order line tetap dikirim dengan `quantity = 0`.
+- `lines` dan `grid_lines` hanya memuat produk yang benar-benar ada sebagai `sale.order.line`.
 - Frontend dapat memakai `confirm_endpoint` untuk confirm. Jika `requires_approval_before_confirm = true`, tampilkan bahwa SO perlu approval dulu sebelum confirm.
 
 ## Master Fleet untuk Dropdown

@@ -287,12 +287,18 @@ const totalDistinctProducts = computed(
 const canEdit = computed(
   () =>
     currentOrder.value &&
-    (currentOrder.value.state === 'draft' || currentOrder.value.state === 'sent'),
+    (typeof currentOrder.value.can_edit === 'boolean'
+      ? currentOrder.value.can_edit
+      : currentOrder.value.state === 'draft' || currentOrder.value.state === 'sent'),
 )
 
 const canConfirm = computed(
   () =>
-    canEdit.value && (currentOrder.value.state === 'draft' || currentOrder.value.state === 'sent'),
+    currentOrder.value &&
+    (typeof currentOrder.value.can_confirm === 'boolean'
+      ? currentOrder.value.can_confirm
+      : canEdit.value &&
+        (currentOrder.value.state === 'draft' || currentOrder.value.state === 'sent')),
 )
 
 const orderForm = reactive({
@@ -350,6 +356,79 @@ function formatLocalDateTimeForInput(date: Date): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
+function extractNumericId(value: unknown): number | null {
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'number' ? value[0] : null
+  }
+
+  return typeof value === 'number' ? value : null
+}
+
+function extractOrderDetail(response: any): any | null {
+  const data = response?.data
+  if (!data || typeof data !== 'object') {
+    return null
+  }
+
+  if (data.order && typeof data.order === 'object') {
+    return data.order
+  }
+
+  return data
+}
+
+function extractOrderLines(orderDetail: any): any[] {
+  if (Array.isArray(orderDetail?.order_line)) {
+    return orderDetail.order_line
+  }
+  if (Array.isArray(orderDetail?.lines)) {
+    return orderDetail.lines
+  }
+  if (Array.isArray(orderDetail?.grid_lines)) {
+    return orderDetail.grid_lines
+  }
+
+  return []
+}
+
+function extractGridItems(orderDetail: any): any[] {
+  if (Array.isArray(orderDetail?.grid_items)) {
+    return orderDetail.grid_items
+  }
+  if (Array.isArray(orderDetail?.items)) {
+    return orderDetail.items
+  }
+  if (Array.isArray(orderDetail?.products)) {
+    return orderDetail.products
+  }
+
+  return []
+}
+
+function parseNumericQuantity(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return 0
+}
+
+function extractLineQuantity(line: any): number {
+  return Math.max(
+    parseNumericQuantity(line?.qty_ordered),
+    parseNumericQuantity(line?.quantity),
+    parseNumericQuantity(line?.qty),
+    parseNumericQuantity(line?.product_uom_qty),
+  )
+}
+
 async function loadOrderData() {
   if (!saleOrderId.value) {
     loadError.value = 'ID order tidak valid'
@@ -368,7 +447,28 @@ async function loadOrderData() {
       throw new Error(response?.message || 'Gagal memuat detail order')
     }
 
-    currentOrder.value = response.data.order
+    const orderDetail = extractOrderDetail(response)
+    if (!orderDetail) {
+      throw new Error('Format detail order tidak valid')
+    }
+
+    const partnerId =
+      extractNumericId(orderDetail.partner_id) ||
+      extractNumericId(orderDetail.customer_id) ||
+      (typeof orderDetail.partner_id === 'number' ? orderDetail.partner_id : null) ||
+      (typeof orderDetail.customer_id === 'number' ? orderDetail.customer_id : null)
+
+    if (!partnerId) {
+      throw new Error('Data customer order tidak ditemukan')
+    }
+
+    currentOrder.value = {
+      ...orderDetail,
+      partner_id: partnerId,
+      partner_name: orderDetail.partner_name || orderDetail.customer_name || '',
+      partner_ref: orderDetail.partner_ref || orderDetail.ref || '',
+      customer_qr_ref: orderDetail.customer_qr_ref || '',
+    }
 
     // Initialize order store with existing data
     orderStore.setCustomer({
@@ -385,34 +485,94 @@ async function loadOrderData() {
     })
 
     // Load existing lines into order store
-    if (response.data.order.order_line && Array.isArray(response.data.order.order_line)) {
-      response.data.order.order_line.forEach((line: any) => {
-        if (line.product_id && line.qty_ordered > 0) {
+    const detailGridItems = extractGridItems(currentOrder.value)
+    if (detailGridItems.length > 0) {
+      detailGridItems.forEach((item: any) => {
+        const productId =
+          extractNumericId(item.product_id) ||
+          (typeof item.product_id === 'number' ? item.product_id : null)
+        const quantity = extractLineQuantity(item)
+
+        if (productId && quantity > 0) {
           orderStore.setProductQuantity(
             {
-              product_id: line.product_id[0],
+              product_id: productId,
+              default_code: item.default_code || item.product_code || '',
+              barcode: item.barcode || '',
+              name: item.name || item.product_name || '',
+              list_price:
+                parseNumericQuantity(item.list_price) || parseNumericQuantity(item.price_unit),
+              uom_name: item.uom_name || item.product_uom?.name || 'Unit',
+              category_name: item.category_name || '',
+              business_category_id: parseNumericQuantity(item.business_category_id),
+              business_category_name: item.business_category_name || '',
+            },
+            quantity,
+          )
+        }
+      })
+    }
+
+    const existingLines = extractOrderLines(currentOrder.value)
+    if (existingLines.length > 0) {
+      existingLines.forEach((line: any) => {
+        const productId =
+          extractNumericId(line.product_id) ||
+          (typeof line.product_id === 'number' ? line.product_id : null)
+        const quantity = extractLineQuantity(line)
+
+        if (productId && quantity > 0) {
+          orderStore.setProductQuantity(
+            {
+              product_id: productId,
               default_code: line.product_code || '',
               barcode: '',
-              name: line.name || '',
+              name: line.name || line.product_name || '',
               list_price: line.price_unit || 0,
-              uom_name: line.product_uom?.name || 'Unit',
+              uom_name: line.product_uom?.name || line.uom_name || 'Unit',
               category_name: '',
               business_category_id: 0,
               business_category_name: '',
             },
-            line.qty_ordered,
+            quantity,
+          )
+        }
+      })
+    }
+
+    if (currentOrder.value.quantities && typeof currentOrder.value.quantities === 'object') {
+      Object.entries(currentOrder.value.quantities).forEach(([productIdKey, rawQuantity]) => {
+        const productId = Number(productIdKey)
+        const quantity = parseNumericQuantity(rawQuantity)
+
+        if (Number.isFinite(productId) && productId > 0 && quantity > 0) {
+          orderStore.setProductQuantity(
+            {
+              product_id: productId,
+              default_code: '',
+              barcode: '',
+              name: '',
+              list_price: 0,
+              uom_name: 'Unit',
+              category_name: '',
+              business_category_id: 0,
+              business_category_name: '',
+            },
+            quantity,
           )
         }
       })
     }
 
     // Populate form from current order
-    orderForm.commitment_date = formatLocalDateTimeForInput(
-      new Date(currentOrder.value.commitment_date),
-    )
-    orderForm.payment_term_id = currentOrder.value.payment_term_id?.[0] || null
-    orderForm.store_id = currentOrder.value.store_id?.[0] || null
-    orderForm.vehicle_id = currentOrder.value.delivery_vehicle_id?.[0] || null
+    orderForm.commitment_date = currentOrder.value.commitment_date
+      ? formatLocalDateTimeForInput(new Date(currentOrder.value.commitment_date))
+      : ''
+    orderForm.payment_term_id = extractNumericId(currentOrder.value.payment_term_id)
+    orderForm.store_id = extractNumericId(currentOrder.value.store_id)
+    orderForm.vehicle_id =
+      extractNumericId(currentOrder.value.delivery_vehicle_id) ||
+      extractNumericId(currentOrder.value.vehicle_id)
     orderForm.note = currentOrder.value.note || ''
   } catch (error) {
     console.error('Failed to load order detail:', error)

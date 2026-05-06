@@ -346,8 +346,15 @@ function refresh() {
 
 watch(
   () => selectedCustomer.value?.partner_id,
-  () => {
-    orderStore.clearItems()
+  (newPartnerId, oldPartnerId) => {
+    const hadPreviousCustomer = oldPartnerId !== undefined && oldPartnerId !== null
+    const customerChanged = hadPreviousCustomer && newPartnerId !== oldPartnerId
+
+    // Keep existing quantities on initial bind (edit mode), reset only when user switches customer.
+    if (customerChanged) {
+      orderStore.clearItems()
+    }
+
     offset.value = 0
     searchQuery.value = ''
     loadProducts()
