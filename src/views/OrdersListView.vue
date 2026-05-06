@@ -155,7 +155,7 @@
                 <td class="px-4 py-3 text-center">
                   <router-link
                     v-if="canEditOrder(order)"
-                    :to="`/orders/${order.id}/edit`"
+                    :to="`/orders/${order.sale_order_id || order.order_id || order.id}/edit`"
                     class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition"
                   >
                     ✎ Edit
