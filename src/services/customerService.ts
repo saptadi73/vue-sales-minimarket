@@ -21,7 +21,7 @@ export interface SearchCustomerAutocompleteParams {
   min_chars?: number
 }
 
-function logCustomerApiError(error: unknown, endpoint: string, params: GetCustomersParams) {
+function logCustomerApiError(error: unknown, endpoint: string, params: Record<string, unknown>) {
   const err = error as any
   const baseUrl = getApiBaseUrl()
 
@@ -34,6 +34,74 @@ function logCustomerApiError(error: unknown, endpoint: string, params: GetCustom
   console.log('Error Message:', err?.message ?? '(no message)')
   console.error('Raw Error Object:', err)
   console.groupEnd()
+}
+
+function extractBackendMessage(response: unknown): string {
+  const data = response as any
+  const candidates = [
+    data?.message,
+    data?.error?.message,
+    data?.error?.data?.message,
+    data?.data?.message,
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim()
+    }
+  }
+
+  return ''
+}
+
+function isAutocompleteSuccessResponse(response: unknown): boolean {
+  const data = response as any
+  if (!data || typeof data !== 'object') {
+    return false
+  }
+
+  const status = typeof data.status === 'string' ? data.status.toLowerCase() : ''
+  if (status === 'success') {
+    return true
+  }
+
+  return Array.isArray(data?.data?.items) || Array.isArray(data?.data?.results)
+}
+
+function mapAutocompleteItems(response: unknown): CustomerSearchItem[] {
+  const data = response as any
+  const candidates = data?.data?.items || data?.data?.results || []
+  if (!Array.isArray(candidates)) {
+    return []
+  }
+
+  return candidates
+    .map((item: any): CustomerSearchItem | null => {
+      const resolvedId = item?.id || item?.partner_id || item?.customer_id
+      if (!resolvedId) {
+        return null
+      }
+
+      return {
+        id: Number(resolvedId),
+        text: item?.text,
+        partner_id: item?.partner_id,
+        customer_id: item?.customer_id,
+        name: item?.name,
+        ref: item?.ref,
+        customer_qr_ref: item?.customer_qr_ref,
+      }
+    })
+    .filter((item): item is CustomerSearchItem => Boolean(item))
+}
+
+function isShortQueryError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    (lower.includes('min') && lower.includes('char')) ||
+    lower.includes('minimal') ||
+    lower.includes('too short')
+  )
 }
 
 export const customerService = {
@@ -89,28 +157,53 @@ export const customerService = {
       min_chars: params.min_chars ?? 1,
     }
 
-    try {
-      const response = await postJsonRpc<CustomerSearchResponse>(
-        API_CONFIG.endpoints.susuOlahanCustomerSearch,
-        requestParams,
-      )
+    const endpoints = [
+      API_CONFIG.endpoints.susuOlahanCustomerSearch,
+      API_CONFIG.endpoints.susuOlahanCustomersSearch,
+    ]
 
-      if (!response) {
-        throw new Error('Response customer-search kosong dari backend')
+    let lastBackendMessage = ''
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await postJsonRpc<CustomerSearchResponse>(endpoint, requestParams)
+
+        if (!response) {
+          lastBackendMessage = 'Response customer-search kosong dari backend'
+          continue
+        }
+
+        if (!isAutocompleteSuccessResponse(response)) {
+          const backendMessage =
+            extractBackendMessage(response) || 'Backend mengembalikan status error'
+
+          if (isShortQueryError(backendMessage)) {
+            return []
+          }
+
+          lastBackendMessage = backendMessage
+          continue
+        }
+
+        return mapAutocompleteItems(response)
+      } catch (error) {
+        logCustomerApiError(error, endpoint, requestParams)
+        const backendMessage = error instanceof Error ? error.message : ''
+
+        if (backendMessage && isShortQueryError(backendMessage)) {
+          return []
+        }
+
+        if (backendMessage) {
+          lastBackendMessage = backendMessage
+        }
       }
-
-      if (response.status !== 'success') {
-        const backendMessage = response.message || 'Backend mengembalikan status error'
-        throw new Error(backendMessage)
-      }
-
-      return response.data?.items || response.data?.results || []
-    } catch (error) {
-      logCustomerApiError(error, API_CONFIG.endpoints.susuOlahanCustomerSearch, requestParams)
-      throw new Error(
-        'Gagal memuat customer autocomplete. Periksa URL API, session login, dan response backend.',
-      )
     }
+
+    throw new Error(
+      lastBackendMessage ||
+        'Gagal memuat customer autocomplete. Periksa URL API, session login, dan response backend.',
+    )
   },
 
   /**

@@ -14,6 +14,16 @@ export interface GetProductsParams {
   customer_qr_ref?: string
 }
 
+function buildProductSearchPayload(search?: string) {
+  const keyword = (search || '').trim()
+  return {
+    search: keyword,
+    q: keyword,
+    term: keyword,
+    query: keyword,
+  }
+}
+
 export const productService = {
   /**
    * Get produk susu olahan
@@ -22,13 +32,14 @@ export const productService = {
     params: GetProductsParams = {},
   ): Promise<GridProductsResponse | null> {
     try {
+      const searchPayload = buildProductSearchPayload(params.search)
       const response = await postJsonRpc<GridProductsResponse>(
         API_CONFIG.endpoints.susuOlahanProducts,
         {
           customer_id: params.customer_id,
           partner_id: params.partner_id,
           customer_qr_ref: params.customer_qr_ref,
-          search: params.search || '',
+          ...searchPayload,
           limit: params.limit || 100,
           offset: params.offset || 0,
         },
@@ -45,13 +56,14 @@ export const productService = {
    */
   async getGridProducts(params: GetProductsParams = {}): Promise<GridProductsResponse | null> {
     try {
+      const searchPayload = buildProductSearchPayload(params.search)
       const response = await postJsonRpc<GridProductsResponse>(
         API_CONFIG.endpoints.minimarketGridProducts,
         {
           customer_id: params.customer_id,
           partner_id: params.partner_id,
           customer_qr_ref: params.customer_qr_ref,
-          search: params.search || '',
+          ...searchPayload,
           category_ids: params.category_ids || [],
           product_ids: params.product_ids || [],
           quantities: params.quantities || {},

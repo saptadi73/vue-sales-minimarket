@@ -55,6 +55,12 @@ VITE_API_BASE_URL=http://localhost:8069
 
 **Catatan**: Anda bisa mengganti URL Odoo langsung dari halaman login tanpa perlu mengubah file ini. URL akan otomatis tersimpan di browser Anda.
 
+Untuk production di domain frontend `https://suol.kanjabung.web.id`, gunakan `.env.production` dengan nilai kosong agar request API lewat same-origin proxy:
+
+```env
+VITE_API_BASE_URL=
+```
+
 ### 4. Development Server
 
 ```bash
@@ -295,6 +301,18 @@ VITE_API_BASE_URL=https://odoo.yourdomain.com
 
 - Fallback ini digunakan jika user tidak input URL di login page
 
+#### Opsi 3: Production same-origin via Nginx (direkomendasikan)
+
+- Set `.env.production`:
+
+```env
+VITE_API_BASE_URL=
+```
+
+- Frontend akan memanggil endpoint relatif `/api/...`.
+- Nginx domain frontend harus mem-proxy `/api/*` ke backend Odoo.
+- Cocok untuk deployment `https://suol.kanjabung.web.id` agar konfigurasi cookie/session lebih stabil.
+
 ### Menambah Payment Terms
 
 Edit file `src/views/OrderCreateView.vue`, ubah opsi select:
@@ -325,6 +343,13 @@ Aplikasi ini dapat dikonfigurasi sebagai PWA:
 **Masalah**: `Access to XMLHttpRequest blocked by CORS policy`
 
 - **Solusi**: Pastikan Odoo sudah dikonfigurasi untuk accept CORS dari origin frontend
+
+### API tetap menuju host lama setelah deploy
+
+**Masalah**: Sudah ubah env production, tetapi request masih menuju host lain.
+
+- **Solusi**: Hapus localStorage key `apiBaseUrl` pada browser.
+- Login page menyimpan override URL API. Selama key ini ada, nilai env tidak dipakai.
 
 ### Session Expired
 

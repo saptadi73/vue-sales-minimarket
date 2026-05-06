@@ -240,12 +240,15 @@ async function loadProducts() {
     Array.from(orderStore.draft.items.entries()).map(([id, item]) => [id, item.quantity]),
   )
 
+  // Beberapa backend menolak keyword 1 karakter; fallback ke empty search.
+  const normalizedSearch = searchQuery.value.trim().length >= 2 ? searchQuery.value.trim() : ''
+
   try {
     const response = await productService.getGridProducts({
       customer_id: selectedCustomer.value.customer_id,
       partner_id: selectedCustomer.value.partner_id,
       customer_qr_ref: selectedCustomer.value.customer_qr_ref,
-      search: searchQuery.value,
+      search: normalizedSearch,
       offset: offset.value,
       limit: limit.value,
       quantities: currentQuantities,
@@ -279,7 +282,7 @@ async function loadProducts() {
         customer_id: selectedCustomer.value.customer_id,
         partner_id: selectedCustomer.value.partner_id,
         customer_qr_ref: selectedCustomer.value.customer_qr_ref,
-        search: searchQuery.value,
+        search: normalizedSearch,
         offset: offset.value,
         limit: limit.value,
       })

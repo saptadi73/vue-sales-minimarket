@@ -18,6 +18,9 @@
               type="date"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <p v-if="filters.date_from" class="mt-1 text-xs text-gray-500">
+              {{ formatDateInputValue(filters.date_from) }}
+            </p>
           </div>
 
           <!-- Date To -->
@@ -28,6 +31,9 @@
               type="date"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <p v-if="filters.date_to" class="mt-1 text-xs text-gray-500">
+              {{ formatDateInputValue(filters.date_to) }}
+            </p>
           </div>
 
           <!-- Store -->
@@ -89,12 +95,22 @@
             <span v-else>Tampilkan Report</span>
           </button>
           <button
+            @click="refreshNow"
+            :disabled="isLoading"
+            class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:bg-gray-100"
+          >
+            Refresh Sekarang
+          </button>
+          <button
             @click="exportReport"
             class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
           >
             📥 Export Excel
           </button>
         </div>
+        <p class="mt-3 text-xs text-gray-500">
+          Terakhir sinkron: {{ lastSyncedAt ? formatSyncTime(lastSyncedAt) : '-' }}
+        </p>
       </div>
 
       <!-- Summary Statistics -->
@@ -134,15 +150,23 @@
             <thead class="bg-gray-100 border-b border-gray-300">
               <tr>
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Tanggal</th>
+                <th class="px-4 py-3 text-left font-semibold text-gray-700">No SO</th>
+                <th class="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Toko/Wilayah</th>
-                <th class="px-4 py-3 text-center font-semibold text-gray-700">Qty</th>
-                <th class="px-4 py-3 text-right font-semibold text-gray-700">Nilai</th>
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Kendaraan</th>
+                <th class="px-4 py-3 text-left font-semibold text-gray-700">Produk</th>
+                <th class="px-4 py-3 text-right font-semibold text-gray-700">Qty</th>
+                <th class="px-4 py-3 text-left font-semibold text-gray-700">Satuan</th>
+                <th class="px-4 py-3 text-right font-semibold text-gray-700">Harga</th>
+                <th class="px-4 py-3 text-right font-semibold text-gray-700">Pajak</th>
+                <th class="px-4 py-3 text-right font-semibold text-gray-700">Subtotal</th>
+                <th class="px-4 py-3 text-right font-semibold text-gray-700">Total</th>
+                <th class="px-4 py-3 text-center font-semibold text-gray-700">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
               <tr v-if="reportData.length === 0" class="hover:bg-gray-50">
-                <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                <td colspan="13" class="px-4 py-8 text-center text-gray-500">
                   Tidak ada data. Silakan klik "Tampilkan Report" untuk melihat laporan.
                 </td>
               </tr>
@@ -154,12 +178,44 @@
                 <td class="px-4 py-3 text-gray-900">
                   {{ formatDate(item.delivery_date || item.date_order) }}
                 </td>
+                <td class="px-4 py-3 font-medium text-gray-900">
+                  {{ item.sale_order_name || '-' }}
+                </td>
+                <td class="px-4 py-3 text-gray-900">{{ item.customer_name || '-' }}</td>
                 <td class="px-4 py-3 text-gray-900">{{ item.store_name || '-' }}</td>
-                <td class="px-4 py-3 text-center text-gray-900">{{ item.quantity || 0 }}</td>
+                <td class="px-4 py-3 text-gray-900">{{ item.vehicle_name || '-' }}</td>
+                <td class="px-4 py-3 text-gray-900 min-w-64">
+                  <div class="font-medium">{{ item.product_name || '-' }}</div>
+                  <div v-if="item.product_id" class="text-xs text-gray-500">
+                    ID Produk: {{ item.product_id }}
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-right text-gray-900">
+                  {{ formatQuantity(item.quantity) }}
+                </td>
+                <td class="px-4 py-3 text-gray-900">{{ item.uom_name || '-' }}</td>
+                <td class="px-4 py-3 text-right text-gray-900">
+                  {{ formatPrice(item.price_unit || 0) }}
+                </td>
+                <td class="px-4 py-3 text-right text-gray-900">
+                  {{ formatPrice(item.tax_amount || 0) }}
+                </td>
+                <td class="px-4 py-3 text-right text-gray-900">
+                  {{ formatPrice(item.price_subtotal || 0) }}
+                </td>
                 <td class="px-4 py-3 text-right font-semibold text-gray-900">
                   {{ formatPrice(item.price_total || 0) }}
                 </td>
-                <td class="px-4 py-3 text-gray-900">{{ item.vehicle_name || '-' }}</td>
+                <td class="px-4 py-3 text-center">
+                  <router-link
+                    v-if="isFirstItemOfOrder(item, index) && canEditFromReport(item)"
+                    :to="`/orders/${item.sale_order_id}/edit`"
+                    class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition"
+                  >
+                    ✎ Edit
+                  </router-link>
+                  <span v-else class="text-xs text-gray-400">-</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -182,7 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import productService from '@/services/productService'
 import deliveryReportService from '@/services/deliveryReportService'
@@ -194,6 +250,9 @@ const isLoading = ref(false)
 const reportData = ref<DeliveryReportItem[]>([])
 const stores = ref<Store[]>([])
 const vehicles = ref<Vehicle[]>([])
+const lastSyncedAt = ref<Date | null>(null)
+const AUTO_REFRESH_COOLDOWN_MS = 10_000
+let lastAutoRefreshAt = 0
 const summary = reactive({
   total_orders: 0,
   total_quantity: 0,
@@ -208,7 +267,14 @@ const filters = reactive({
 })
 
 onMounted(async () => {
+  window.addEventListener('focus', handleWindowFocus)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   await Promise.all([loadMasterData(), loadReport()])
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', handleWindowFocus)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 async function loadMasterData() {
@@ -239,12 +305,24 @@ function getDateString(date: Date): string {
   return isoString.split('T')[0] || ''
 }
 
+function formatDateInputValue(value: string): string {
+  const [year, month, day] = value.split('-')
+  if (!year || !month || !day) return value
+  return `${day}/${month}/${year}`
+}
+
 function formatDate(dateString: string | undefined): string {
   if (!dateString) return '-'
-  return new Date(dateString).toLocaleDateString('id-ID', {
+  const normalizedDate = dateString.trim().replace(' ', 'T')
+  const parsedDate = new Date(normalizedDate)
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateString
+  }
+
+  return parsedDate.toLocaleDateString('id-ID', {
     year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   })
 }
 
@@ -252,7 +330,15 @@ function formatPrice(price: number): string {
   return productService.formatPrice(price)
 }
 
+function formatQuantity(quantity: number | undefined): string {
+  return quantity ? new Intl.NumberFormat('id-ID').format(quantity) : '0'
+}
+
 async function loadReport() {
+  if (isLoading.value) {
+    return
+  }
+
   isLoading.value = true
   try {
     const response = await deliveryReportService.getReport({
@@ -286,6 +372,8 @@ async function loadReport() {
     if (!reportData.value.length) {
       notifyInfo('Data report kosong', 'Tidak ada data untuk filter yang dipilih.')
     }
+
+    lastSyncedAt.value = new Date()
   } catch (error) {
     console.error('Failed to load delivery report:', error)
     reportData.value = []
@@ -298,6 +386,38 @@ async function loadReport() {
   }
 }
 
+async function refreshNow() {
+  await loadReport()
+}
+
+function handleWindowFocus() {
+  void triggerAutoRefreshIfDue()
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void triggerAutoRefreshIfDue()
+  }
+}
+
+async function triggerAutoRefreshIfDue() {
+  const now = Date.now()
+  if (now - lastAutoRefreshAt < AUTO_REFRESH_COOLDOWN_MS) {
+    return
+  }
+
+  lastAutoRefreshAt = now
+  await loadReport()
+}
+
+function formatSyncTime(value: Date): string {
+  return new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(value)
+}
+
 function exportReport() {
   if (!reportData.value.length) {
     notifyInfo('Belum ada data', 'Tidak ada data report untuk diekspor.')
@@ -305,23 +425,64 @@ function exportReport() {
   }
 
   // Simple export to CSV
-  const headers = ['Tanggal', 'Toko/Wilayah', 'Qty', 'Nilai', 'Kendaraan']
+  const headers = [
+    'Tanggal',
+    'No SO',
+    'Customer',
+    'Toko/Wilayah',
+    'Kendaraan',
+    'Product ID',
+    'Produk',
+    'Qty',
+    'Satuan',
+    'Harga',
+    'Pajak',
+    'Subtotal',
+    'Total',
+  ]
   const rows = reportData.value.map((item) => [
-    item.delivery_date || item.date_order,
+    formatDate(item.delivery_date || item.date_order),
+    item.sale_order_name,
+    item.customer_name,
     item.store_name,
-    item.quantity,
-    item.price_total,
     item.vehicle_name,
+    item.product_id,
+    item.product_name,
+    item.quantity,
+    item.uom_name,
+    item.price_unit,
+    item.tax_amount,
+    item.price_subtotal,
+    item.price_total,
   ])
 
   let csv = headers.join(',') + '\n'
   rows.forEach((row) => {
-    csv += row.join(',') + '\n'
+    csv += row.map(escapeCsvValue).join(',') + '\n'
   })
 
   const link = document.createElement('a')
   link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
   link.download = `report-${filters.date_from}-to-${filters.date_to}.csv`
   link.click()
+}
+
+function escapeCsvValue(value: unknown): string {
+  const stringValue = value == null ? '' : String(value)
+  if (/[",\n\r]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, '""')}"`
+  }
+  return stringValue
+}
+
+function isFirstItemOfOrder(item: DeliveryReportItem, index: number): boolean {
+  if (index === 0) return true
+  const prevItem = reportData.value[index - 1]
+  return !prevItem || item.sale_order_id !== prevItem.sale_order_id
+}
+
+function canEditFromReport(item: DeliveryReportItem): boolean {
+  const state = (item.state || '').toLowerCase()
+  return state === 'draft' || state === 'sent'
 }
 </script>

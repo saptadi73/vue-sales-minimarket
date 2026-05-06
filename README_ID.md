@@ -61,6 +61,15 @@ VITE_API_BASE_URL=http://localhost:8069
 
 **💡 Tips**: Anda bisa langsung mengganti URL Odoo dari halaman login! URL akan otomatis tersimpan untuk login berikutnya, jadi tidak perlu mengubah file ini.
 
+Untuk production di domain frontend `https://suol.kanjabung.web.id`, rekomendasi adalah mode same-origin via reverse proxy:
+
+```env
+# di .env.production
+VITE_API_BASE_URL=
+```
+
+Dengan nilai kosong, frontend akan memanggil endpoint relatif (`/api/...`) dan Nginx meneruskan request ke backend Odoo.
+
 ### 3. Development Mode
 
 ```bash
@@ -183,6 +192,19 @@ Untuk testing tanpa Odoo backend:
 
 ### Environment di Production
 
+**Opsi A (Direkomendasikan untuk suol.kanjabung.web.id): same-origin via Nginx proxy**
+
+```env
+VITE_API_BASE_URL=
+```
+
+Syarat:
+
+- Domain frontend mem-proxy `/api/*` ke backend Odoo.
+- Karena request tetap di origin frontend, isu CORS biasanya lebih minim.
+
+**Opsi B: cross-origin langsung ke Odoo**
+
 ```env
 VITE_API_BASE_URL=https://odoo.yourdomain.com
 ```
@@ -270,6 +292,12 @@ Gunakan Odoo user Anda:
 ### Session expired
 
 → Login kembali di halaman login
+
+### URL API tidak sesuai env saat sudah deploy
+
+→ Cek localStorage browser key `apiBaseUrl`.
+
+Login page dapat menyimpan override URL API ke localStorage. Jika key ini ada, nilainya akan dipakai dan mengabaikan fallback env. Hapus key tersebut jika ingin kembali ke setting `.env.production`.
 
 ## 📞 Support & Questions
 

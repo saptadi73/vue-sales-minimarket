@@ -1,6 +1,6 @@
 import { postJsonRpc } from './httpClient'
 import { API_CONFIG } from '@/config/api'
-import type { MasterListResponse, Store, Vehicle } from '@/types'
+import type { MasterListResponse, PaymentTerm, PaymentTermsResponse, Store, Vehicle } from '@/types'
 import { getApiBaseUrl } from '@/utils/apiUrl'
 
 export interface GetMasterDataParams {
@@ -131,6 +131,46 @@ export const masterDataService = {
   async listVehicles(search = ''): Promise<Vehicle[]> {
     const response = await this.getVehicles({ search })
     return response?.data?.items || []
+  },
+
+  async getPaymentTerms(): Promise<PaymentTermsResponse> {
+    const requestParams = {}
+    const endpoint = API_CONFIG.endpoints.paymentTerms
+
+    try {
+      const response = await postJsonRpc<PaymentTermsResponse>(endpoint, requestParams)
+
+      if (!response) {
+        throw new Error('Response payment term kosong dari backend')
+      }
+
+      if (response.status !== 'success') {
+        throw new Error(
+          response.message || 'Backend mengembalikan status error untuk data payment term',
+        )
+      }
+
+      return response
+    } catch (error) {
+      logMasterDataApiError('Get payment terms', error, endpoint, requestParams)
+      throw new Error(
+        extractMasterDataErrorMessage(error, 'Gagal memuat daftar payment term dari backend.'),
+      )
+    }
+  },
+
+  async listPaymentTerms(): Promise<PaymentTerm[]> {
+    const response = await this.getPaymentTerms()
+
+    if (!response?.data) {
+      return []
+    }
+
+    if (Array.isArray(response.data)) {
+      return response.data
+    }
+
+    return response.data.items || []
   },
 }
 

@@ -185,6 +185,17 @@ export interface MasterListResponse<T> {
   }
 }
 
+export interface PaymentTerm {
+  payment_term_id: number
+  name: string
+}
+
+export interface PaymentTermsResponse {
+  status: 'success' | 'error'
+  message?: string
+  data?: PaymentTerm[] | { items?: PaymentTerm[]; count?: number }
+}
+
 // Order Types
 export interface OrderLineItem {
   product_id: number
@@ -194,6 +205,8 @@ export interface OrderLineItem {
 export interface CreateOrderPayload {
   partner_id?: number
   customer_qr_ref?: string
+  frontend_request_uid?: string
+  idempotency_key?: string
   commitment_date: string
   payment_term_id: number
   business_category_id?: number
@@ -206,6 +219,12 @@ export interface CreateOrderPayload {
   fleet_driver_id?: number
   grt_driver_id?: number
   sopir_id?: number
+  departure_datetime?: string
+  delivery_datetime?: string
+  booking_datetime?: string
+  departure_region_id?: number
+  destination_region_id?: number
+  fleet_booking_state?: 'draft' | 'confirmed'
   debug?: boolean
   note?: string
   grid_lines?: OrderLineItem[]
@@ -246,6 +265,8 @@ export interface SalesOrderListItem {
   name?: string
   date_order?: string
   create_date?: string
+  write_date?: string
+  update_date?: string
   commitment_date?: string
   partner_id?: number
   customer_id?: number
@@ -307,7 +328,10 @@ export interface DeliveryReportItem {
   product_id?: number
   product_name?: string
   quantity?: number
+  uom_id?: number
+  uom_name?: string
   price_unit?: number
+  tax_ids?: number[]
   tax_amount?: number
   price_subtotal?: number
   price_total?: number

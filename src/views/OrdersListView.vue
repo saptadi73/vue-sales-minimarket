@@ -27,20 +27,30 @@
       <div class="bg-white rounded-lg shadow p-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1"
+              >Dari Tanggal Pengiriman</label
+            >
             <input
               v-model="filters.date_from"
               type="date"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <p v-if="filters.date_from" class="mt-1 text-xs text-gray-500">
+              {{ formatDateInputValue(filters.date_from) }}
+            </p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1"
+              >Sampai Tanggal Pengiriman</label
+            >
             <input
               v-model="filters.date_to"
               type="date"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <p v-if="filters.date_to" class="mt-1 text-xs text-gray-500">
+              {{ formatDateInputValue(filters.date_to) }}
+            </p>
           </div>
           <div class="flex items-end">
             <button
@@ -106,11 +116,12 @@
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Booking Fleet</th>
                 <th class="px-4 py-3 text-right font-semibold text-gray-700">Total</th>
                 <th class="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                <th class="px-4 py-3 text-center font-semibold text-gray-700">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
               <tr v-if="!isLoading && orders.length === 0">
-                <td colspan="8" class="px-4 py-10 text-center text-gray-500">
+                <td colspan="9" class="px-4 py-10 text-center text-gray-500">
                   Belum ada Sales Order pada rentang tanggal ini.
                 </td>
               </tr>
@@ -141,10 +152,35 @@
                     {{ order.state || '-' }}
                   </span>
                 </td>
+                <td class="px-4 py-3 text-center">
+                  <router-link
+                    v-if="canEditOrder(order)"
+                    :to="`/orders/${order.id}/edit`"
+                    class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition"
+                  >
+                    ✎ Edit
+                  </router-link>
+                  <span v-else class="text-xs text-gray-400">-</span>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs text-gray-500">
+        <span>
+          Terakhir sinkron:
+          {{ lastSyncedAt ? formatSyncTime(lastSyncedAt) : '-' }}
+        </span>
+        <button
+          type="button"
+          @click="refreshNow"
+          :disabled="isLoading"
+          class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:bg-gray-100"
+        >
+          Refresh Sekarang
+        </button>
       </div>
 
       <div v-if="loadError" class="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -157,18 +193,26 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import Layout from '@/components/Layout.vue'
 import orderService from '@/services/orderService'
 import productService from '@/services/productService'
 import { notifyWarning } from '@/utils/notify'
 import type { SalesOrderListItem } from '@/types'
 
+type SuccessListResponse = {
+  status: 'success'
+  data?: { items?: SalesOrderListItem[]; count?: number }
+}
+
 const isLoading = ref(false)
 const orders = ref<SalesOrderListItem[]>([])
 const totalOrders = ref(0)
 const loadError = ref('')
 const lastSourceLabel = ref('')
+const lastSyncedAt = ref<Date | null>(null)
+const AUTO_REFRESH_COOLDOWN_MS = 10_000
+let lastAutoRefreshAt = 0
 
 const filters = reactive({
   date_from: getFirstDayOfMonthString(new Date()),
@@ -176,16 +220,28 @@ const filters = reactive({
 })
 
 onMounted(async () => {
+  window.addEventListener('focus', handleWindowFocus)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   await loadOrders()
 })
 
+onUnmounted(() => {
+  window.removeEventListener('focus', handleWindowFocus)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+})
+
 async function loadOrders() {
+  if (isLoading.value) {
+    return
+  }
+
   isLoading.value = true
   loadError.value = ''
 
   const params = {
     date_from: filters.date_from || undefined,
     date_to: filters.date_to || undefined,
+    frontend_only: false,
     include_lines: false,
     include_accounting: true,
     limit: 100,
@@ -193,21 +249,24 @@ async function loadOrders() {
   }
 
   try {
-    const susuOlahanRes = await orderService.getSusuOlahanOrders(params)
-    if (isSuccessListResponse(susuOlahanRes)) {
-      applyOrders(susuOlahanRes.data?.items || [], susuOlahanRes.data?.count, 'SUSU OLAHAN')
-      return
-    }
+    const [minimarketRes, susuOlahanRes, genericRes] = await Promise.all([
+      orderService.getMinimarketOrders(params),
+      orderService.getSusuOlahanOrders(params),
+      orderService.getOrders(params),
+    ])
 
-    const minimarketRes = await orderService.getMinimarketOrders(params)
-    if (isSuccessListResponse(minimarketRes)) {
-      applyOrders(minimarketRes.data?.items || [], minimarketRes.data?.count, 'MINIMARKET')
-      return
-    }
+    const successfulSources = [
+      { label: 'MINIMARKET', response: minimarketRes },
+      { label: 'SUSU OLAHAN', response: susuOlahanRes },
+      { label: 'GENERIC', response: genericRes },
+    ].filter(isSuccessSource)
 
-    const genericRes = await orderService.getOrders(params)
-    if (isSuccessListResponse(genericRes)) {
-      applyOrders(genericRes.data?.items || [], genericRes.data?.count, 'GENERIC')
+    if (successfulSources.length) {
+      const mergedOrders = mergeOrderLists(
+        successfulSources.flatMap((source) => responseItems(source.response)),
+      )
+      applyOrders(mergedOrders, mergedOrders.length, sourceSummary(successfulSources))
+      lastSyncedAt.value = new Date()
       return
     }
 
@@ -230,6 +289,38 @@ async function loadOrders() {
   }
 }
 
+async function refreshNow() {
+  await loadOrders()
+}
+
+function handleWindowFocus() {
+  void triggerAutoRefreshIfDue()
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void triggerAutoRefreshIfDue()
+  }
+}
+
+async function triggerAutoRefreshIfDue() {
+  const now = Date.now()
+  if (now - lastAutoRefreshAt < AUTO_REFRESH_COOLDOWN_MS) {
+    return
+  }
+
+  lastAutoRefreshAt = now
+  await loadOrders()
+}
+
+function formatSyncTime(value: Date): string {
+  return new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(value)
+}
+
 function isSuccessListResponse(response: unknown): response is {
   status: 'success'
   data?: { items?: SalesOrderListItem[]; count?: number }
@@ -239,6 +330,114 @@ function isSuccessListResponse(response: unknown): response is {
     typeof response === 'object' &&
     'status' in response &&
     (response as any).status === 'success',
+  )
+}
+
+function isSuccessSource(source: {
+  label: string
+  response: unknown
+}): source is { label: string; response: SuccessListResponse } {
+  return isSuccessListResponse(source.response)
+}
+
+function responseItems(response: SuccessListResponse): SalesOrderListItem[] {
+  return response.data?.items || []
+}
+
+function mergeOrderLists(items: SalesOrderListItem[]): SalesOrderListItem[] {
+  const byIdentity = new Map<string, SalesOrderListItem>()
+
+  for (const item of items) {
+    const key = orderIdentityKey(item, byIdentity.size)
+    const existing = byIdentity.get(key)
+    if (!existing) {
+      byIdentity.set(key, item)
+      continue
+    }
+
+    byIdentity.set(key, pickFresherOrder(existing, item))
+  }
+
+  const merged = Array.from(byIdentity.values())
+
+  return merged.sort((a, b) => {
+    const aTime = parseBackendDate(orderDate(a))?.getTime() ?? 0
+    const bTime = parseBackendDate(orderDate(b))?.getTime() ?? 0
+    return bTime - aTime
+  })
+}
+
+function pickFresherOrder(
+  current: SalesOrderListItem,
+  candidate: SalesOrderListItem,
+): SalesOrderListItem {
+  const currentTime = getOrderLastChangeTime(current)
+  const candidateTime = getOrderLastChangeTime(candidate)
+
+  if (candidateTime > currentTime) {
+    return candidate
+  }
+  if (candidateTime < currentTime) {
+    return current
+  }
+
+  // If timestamps are equal/unavailable, keep the row with richer non-empty fields.
+  return orderDataScore(candidate) > orderDataScore(current) ? candidate : current
+}
+
+function getOrderLastChangeTime(order: SalesOrderListItem): number {
+  const candidates = [
+    order.write_date,
+    order.update_date,
+    order.commitment_date,
+    order.date_order,
+    order.create_date,
+  ]
+
+  for (const value of candidates) {
+    if (!value) continue
+    const parsed = parseBackendDate(value)
+    if (parsed) return parsed.getTime()
+  }
+
+  return 0
+}
+
+function orderDataScore(order: SalesOrderListItem): number {
+  const weightedFields = [
+    order.state,
+    order.amount_total ?? order.total_amount,
+    order.store_name,
+    order.vehicle_name,
+    order.fleet_booking_name,
+    order.fleet_driver_name,
+    order.partner_name ?? order.customer_name,
+  ]
+
+  return weightedFields.reduce<number>((score, value) => {
+    if (value == null) return score
+    if (typeof value === 'string') {
+      return value.trim() ? score + 1 : score
+    }
+    return score + 1
+  }, 0)
+}
+
+function sourceSummary(sources: Array<{ label: string; response: SuccessListResponse }>): string {
+  return sources
+    .map((source) => `${source.label} (${responseItems(source.response).length})`)
+    .join(', ')
+}
+
+function orderIdentityKey(order: SalesOrderListItem, index: number): string {
+  return String(
+    order.order_id ||
+      order.sale_order_id ||
+      order.id ||
+      order.order_number ||
+      order.sale_order_name ||
+      order.name ||
+      `row-${index}`,
   )
 }
 
@@ -276,8 +475,10 @@ function orderAmount(order: SalesOrderListItem): number {
 }
 
 function getDateString(date: Date): string {
-  const isoString = date.toISOString()
-  return isoString.split('T')[0] || ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function getFirstDayOfMonthString(date: Date): string {
@@ -310,11 +511,29 @@ async function applyQuickFilter(filter: 'today' | 'last7days' | 'thisMonth' | 'a
 
 function formatDate(dateString: string | undefined): string {
   if (!dateString) return '-'
-  return new Date(dateString).toLocaleDateString('id-ID', {
+  const parsedDate = parseBackendDate(dateString)
+  if (!parsedDate) return dateString
+
+  return parsedDate.toLocaleDateString('id-ID', {
     year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   })
+}
+
+function formatDateInputValue(value: string): string {
+  const [year, month, day] = value.split('-')
+  if (!year || !month || !day) return value
+  return `${day}/${month}/${year}`
+}
+
+function parseBackendDate(value: string): Date | null {
+  const normalized = value.trim().replace(' ', 'T')
+  const parsed = new Date(normalized)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+  return parsed
 }
 
 function formatPrice(price: number): string {
@@ -333,5 +552,10 @@ function stateBadgeClass(state?: string): string {
     return 'bg-yellow-100 text-yellow-700'
   }
   return 'bg-gray-100 text-gray-700'
+}
+
+function canEditOrder(order: SalesOrderListItem): boolean {
+  const state = (order.state || '').toLowerCase()
+  return state === 'draft' || state === 'sent'
 }
 </script>

@@ -18,6 +18,8 @@ function summarizePayloadForDebug(payload: CreateOrderPayload) {
   return {
     partner_id: payload.partner_id,
     customer_qr_ref: payload.customer_qr_ref,
+    frontend_request_uid: payload.frontend_request_uid,
+    idempotency_key: payload.idempotency_key,
     commitment_date: payload.commitment_date,
     payment_term_id: payload.payment_term_id,
     business_category_id: payload.business_category_id,
@@ -30,6 +32,12 @@ function summarizePayloadForDebug(payload: CreateOrderPayload) {
     fleet_driver_id: payload.fleet_driver_id,
     grt_driver_id: payload.grt_driver_id,
     sopir_id: payload.sopir_id,
+    departure_datetime: payload.departure_datetime,
+    delivery_datetime: payload.delivery_datetime,
+    booking_datetime: payload.booking_datetime,
+    departure_region_id: payload.departure_region_id,
+    destination_region_id: payload.destination_region_id,
+    fleet_booking_state: payload.fleet_booking_state,
     debug: payload.debug,
     grid_lines_count: payload.grid_lines?.length || 0,
     product_ids: (payload.grid_lines || []).map((line) => line.product_id),
@@ -92,11 +100,21 @@ async function submitOrderRequest(
     return response
   } catch (error) {
     logOrderSubmitException(error, endpoint, payload)
-    const backendMessage = extractBackendErrorMessage(error)
-    return {
-      status: 'error',
-      message: normalizeBackendOrderError(backendMessage),
-    }
+    return extractOrderResponseFromError(error)
+  }
+}
+
+function extractOrderResponseFromError(error: unknown): OrderResponse {
+  const err = error as any
+  const payload = err?.response?.data
+  const result = payload?.result && typeof payload.result === 'object' ? payload.result : payload
+
+  const backendMessage = extractBackendErrorMessage(error)
+  return {
+    status: 'error',
+    message: normalizeBackendOrderError(backendMessage),
+    debug: result?.debug,
+    data: result?.data,
   }
 }
 
@@ -122,6 +140,14 @@ function extractBackendErrorMessage(error: unknown): string {
 function normalizeBackendOrderError(message: string): string {
   const lower = message.toLowerCase()
 
+  if (
+    lower.includes('kendaraan sudah dipakai') ||
+    lower.includes('vehicle already') ||
+    (lower.includes('kendaraan') && lower.includes('jadwal') && lower.includes('sama')) ||
+    (lower.includes('vehicle') && lower.includes('schedule') && lower.includes('same'))
+  ) {
+    return 'Kendaraan sudah terpakai di tanggal/jadwal yang sama. Ganti kendaraan atau tanggal pengiriman terlebih dahulu.'
+  }
   if (
     lower.includes('partner_id') ||
     lower.includes('customer_qr_ref') ||
@@ -275,6 +301,68 @@ export const orderService = {
       mobil_id: data.mobil_id,
       note: data.note,
       grid_lines: gridLines,
+    }
+  },
+
+  /**
+   * Get detail sales order
+   */
+  async getOrderDetail(saleOrderId: number): Promise<any> {
+    try {
+      return await postJsonRpc<any>('/api/sales/minimarket/order-detail', {
+        sale_order_id: saleOrderId,
+        include_lines: true,
+      })
+    } catch (error) {
+      console.error('Get order detail error:', error)
+      return {
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Gagal memuat detail order',
+      }
+    }
+  },
+
+  /**
+   * Update draft sales order untuk minimarket
+   * Sesuai dokumentasi: payload sama dengan create, ditambah sale_order_id dan frontend_request_uid
+   */
+  async updateOrder(saleOrderId: number, data: any): Promise<OrderResponse> {
+    const payload = {
+      sale_order_id: saleOrderId,
+      partner_id: data.partner_id,
+      customer_qr_ref: data.customer_qr_ref,
+      frontend_request_uid: data.frontend_request_uid,
+      commitment_date: data.commitment_date,
+      payment_term_id: data.payment_term_id,
+      store_id: data.store_id,
+      delivery_vehicle_id: data.delivery_vehicle_id || data.vehicle_id,
+      fleet_driver_id: data.fleet_driver_id,
+      departure_datetime: data.commitment_date,
+      note: data.note,
+      quantities: data.quantities || {},
+    }
+
+    try {
+      return await postJsonRpc<OrderResponse>(API_CONFIG.endpoints.minimarketUpdateOrder, payload)
+    } catch (error) {
+      console.error('Update order error:', error)
+      return extractOrderResponseFromError(error)
+    }
+  },
+
+  /**
+   * Confirm sales order untuk minimarket
+   */
+  async confirmOrder(saleOrderId: number): Promise<OrderResponse> {
+    const payload = {
+      sale_order_id: saleOrderId,
+    }
+
+    try {
+      return await postJsonRpc<OrderResponse>(API_CONFIG.endpoints.minimarketConfirmOrder, payload)
+    } catch (error) {
+      console.error('Confirm order error:', error)
+      return extractOrderResponseFromError(error)
     }
   },
 

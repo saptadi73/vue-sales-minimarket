@@ -16,6 +16,7 @@ Tujuan UI:
 | --- | --- | --- | --- |
 | `/api/sales/susu-olahan/customers` | `POST` | user | mengambil master customer global untuk frontend SUSU OLAHAN |
 | `/api/sales/susu-olahan/customer-search` | `POST` | user | autocomplete customer global untuk pencarian saat mengetik di HP |
+| `/api/sales/payment-terms` | `POST` | user | mengambil master Term of Payment untuk dropdown TOP/payment term |
 | `/api/sales/susu-olahan/products` | `POST` | user | mengambil produk saleable Business Category SUSU OLAHAN |
 | `/api/sales/susu-olahan/shipping-products` | `POST` | user | endpoint referensi legacy produk ongkir SUSU OLAHAN (tidak dipakai flow draft-order minimarket saat ini) |
 | `/api/sales/susu-olahan/stores` | `POST` | user | mengambil daftar toko/cabang untuk dropdown toko pengirim |
@@ -23,7 +24,13 @@ Tujuan UI:
 | `/api/sales/susu-olahan/delivery-report` | `POST` | user | laporan pengiriman produk per periode/toko/kendaraan |
 | `/api/sales/minimarket/grid-products` | `POST` | user | mengambil produk siap ditampilkan sebagai grid entry |
 | `/api/sales/minimarket/draft-order` | `POST` | user | membuat draft Sales Order dari quantity grid (wajib store + vehicle) |
+| `/api/sales/minimarket/order-detail` | `POST` | user | mengambil detail Sales Order frontend untuk halaman view/edit |
+| `/api/sales/minimarket/update-order` | `POST` | user | update draft Sales Order frontend minimarket yang sudah dibuat |
+| `/api/sales/minimarket/confirm-order` | `POST` | user | confirm Sales Order frontend minimarket |
 | `/api/sales/susu-olahan/draft-order` | `POST` | user | membuat draft Sales Order SUSU OLAHAN dari quantity grid tanpa menambah item ongkir |
+| `/api/sales/susu-olahan/order-detail` | `POST` | user | mengambil detail Sales Order frontend SUSU OLAHAN untuk halaman view/edit |
+| `/api/sales/susu-olahan/update-order` | `POST` | user | update draft Sales Order frontend SUSU OLAHAN yang sudah dibuat |
+| `/api/sales/susu-olahan/confirm-order` | `POST` | user | confirm Sales Order frontend SUSU OLAHAN |
 
 Semua endpoint di atas memakai session Odoo. Login tetap memakai endpoint existing:
 
@@ -373,19 +380,69 @@ Alias endpoint:
 
 - `POST /api/sales/susu-olahan/customers/search`
 
+### `POST /api/sales/payment-terms`
+
+Mengambil master Term of Payment (`account.payment.term`) untuk dropdown payment term/TOP di frontend sales minimarket.
+
+Request:
+
+```json
+{
+  "params": {}
+}
+```
+
+Response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "items": [
+      {
+        "payment_term_id": 1,
+        "id": 1,
+        "name": "Kontan",
+        "display_name": "Kontan",
+        "company_id": false,
+        "company_name": false
+      },
+      {
+        "payment_term_id": 4,
+        "id": 4,
+        "name": "30 Hari",
+        "display_name": "30 Hari",
+        "company_id": 1,
+        "company_name": "PT Contoh"
+      }
+    ],
+    "count": 2
+  }
+}
+```
+
+Catatan:
+
+- Endpoint ini endpoint master data global frontend sales, bukan khusus business category.
+- Backend mengambil data dengan konteks company user dan memakai `sudo()` supaya daftar sama dengan master Term of Payment yang tersedia di Odoo Sales.
+- Jika frontend perlu memaksa company tertentu, kirim `company_id`.
+- Nilai `payment_term_id` dari dropdown wajib dikirim saat create draft order minimarket/susu olahan.
+- Default payment term customer juga sudah ikut dikirim pada endpoint customer melalui `payment_term_id` dan `payment_term_name`, sehingga frontend boleh melakukan prefill berdasarkan customer terpilih.
+
 ## Flow UI yang Disarankan
 
 1. Sales login dari Vue.
 2. Frontend mencari customer saat user mengetik melalui `/api/sales/susu-olahan/customer-search`.
-3. Frontend mengambil produk susu olahan dari `/api/sales/susu-olahan/products` atau `/api/sales/minimarket/grid-products`.
-4. Jika frontend masih memiliki halaman maintenance data legacy ongkir, data referensi bisa diambil dari `/api/sales/susu-olahan/shipping-products`.
-5. Frontend menampilkan produk sebagai sheet/list menurun.
-6. Sales memilih customer minimarket dan mengisi tanggal kirim, payment term, toko, dan kendaraan. Team sales mengikuti akun yang login, dan tipe Sales Order default `reguler`.
-7. Sales mengisi quantity pada baris produk.
-8. Frontend mengirim hanya produk dengan quantity lebih dari 0 ke `/api/sales/susu-olahan/draft-order`.
-9. Backend membuat draft quotation Odoo.
-10. Backend tidak menambahkan line ongkir otomatis; draft order hanya berisi item produk yang diinput frontend.
-11. Sales Order diproses lanjut melalui approval Odoo seperti biasa.
+3. Frontend mengambil master Term of Payment dari `/api/sales/payment-terms`.
+4. Frontend mengambil produk susu olahan dari `/api/sales/susu-olahan/products` atau `/api/sales/minimarket/grid-products`.
+5. Jika frontend masih memiliki halaman maintenance data legacy ongkir, data referensi bisa diambil dari `/api/sales/susu-olahan/shipping-products`.
+6. Frontend menampilkan produk sebagai sheet/list menurun.
+7. Sales memilih customer minimarket dan mengisi tanggal kirim, payment term, toko, dan kendaraan. Team sales mengikuti akun yang login, dan tipe Sales Order default `reguler`.
+8. Sales mengisi quantity pada baris produk.
+9. Frontend mengirim hanya produk dengan quantity lebih dari 0 ke `/api/sales/susu-olahan/draft-order`.
+10. Backend membuat draft quotation Odoo.
+11. Backend tidak menambahkan line ongkir otomatis; draft order hanya berisi item produk yang diinput frontend.
+12. Sales Order diproses lanjut melalui approval Odoo seperti biasa.
 
 ## Grid Products
 
@@ -486,6 +543,7 @@ Endpoint ini menerima dua bentuk payload quantity.
   "params": {
     "partner_id": 45,
     "customer_qr_ref": "CUSTQR2603-000001",
+    "frontend_request_uid": "SO-MM-20260430-USER12-0001",
     "commitment_date": "2026-04-30 10:00:00",
     "payment_term_id": 4,
     "note": "PO minimarket cabang A",
@@ -504,6 +562,7 @@ Endpoint ini menerima dua bentuk payload quantity.
 {
   "params": {
     "partner_id": 45,
+    "frontend_request_uid": "SO-MM-20260430-USER12-0001",
     "commitment_date": "2026-04-30 10:00:00",
     "payment_term_id": 4,
     "quantities": {
@@ -517,16 +576,25 @@ Endpoint ini menerima dua bentuk payload quantity.
 
 Backend hanya akan membuat order line untuk quantity yang lebih besar dari 0.
 
+Guard anti double-create:
+
+- Jika request yang sama dikirim ulang dengan `frontend_request_uid`/`idempotency_key` yang sama, backend mengembalikan Sales Order existing dan tidak membuat order baru.
+- Jika frontend belum mengirim key tersebut, backend tetap membuat fingerprint dari payload dan menahan payload identik dalam window pendek untuk mencegah double-click cepat.
+- Response hasil duplicate memakai `status: "success"` dengan `message: "Draft sales order already exists"` dan `data.is_duplicate_request = true`.
+
 Field utama:
 
 - `partner_id` atau `customer_qr_ref`: wajib salah satu.
+- `frontend_request_uid` atau `idempotency_key`: sangat disarankan. Isi dengan UUID/nomor submit unik dari frontend untuk mencegah double create saat user double-click, koneksi retry, atau browser mengirim ulang request.
 - `commitment_date`: wajib.
 - `payment_term_id`: wajib.
 - `store_id` atau `toko_id`: **wajib** untuk endpoint minimarket.
 - `delivery_vehicle_id` atau `vehicle_id` atau `mobil_id`: **wajib** untuk endpoint minimarket.
 - `fleet_driver_id` atau `grt_driver_id` atau `sopir_id`: opsional jika kendaraan sudah punya Driver Default Fleet; kirim field ini jika frontend menyediakan pilihan sopir.
 - `departure_datetime` atau `delivery_datetime` atau `booking_datetime`: opsional; jika kosong, booking fleet memakai `commitment_date`.
-- `departure_region_id` dan `destination_region_id`: opsional; jika kosong, backend mengambil region dari toko/customer atau membuat region otomatis.
+- `departure_region_id` dan `destination_region_id`: opsional.
+- Jika `destination_region_id` kosong, backend memakai toko/minimarket sebagai wilayah tujuan booking.
+- Jika `departure_region_id` kosong, backend memakai/membuat wilayah company sebagai wilayah pemberangkatan.
 - `team_id`: opsional. Jika tidak dikirim, backend otomatis memakai Team Sales dari user yang login.
 - `business_category_id`: opsional. Jika tidak dikirim, backend otomatis mengambil Business Category dari Team Sales user.
 - `sale_order_type`: tidak perlu dikirim dari frontend minimarket/susu olahan. Backend otomatis memakai `reguler`.
@@ -534,6 +602,76 @@ Field utama:
 - `quantities`: map `product_id -> quantity`, cocok untuk state object Vue.
 
 Setelah draft Sales Order berhasil dibuat, backend langsung membuat `grt.fleet.booking` dengan tanggal/jam, mobil, dan sopir yang dipilih. Booking dibuat dalam status `confirmed` secara default. Jika frontend perlu membuat booking tetap draft, kirim `fleet_booking_state: "draft"`.
+
+## Update Draft Sales Order dari Frontend
+
+Gunakan endpoint berikut saat user membuka ulang Sales Order yang sebelumnya dibuat dari frontend dan perlu mengubah customer, tanggal kirim, TOP, toko, kendaraan, sopir, catatan, atau quantity produk:
+
+- `POST /api/sales/minimarket/update-order`
+- `POST /api/sales/minimarket/draft-order/update`
+- `POST /api/sales/susu-olahan/update-order`
+- `POST /api/sales/susu-olahan/draft-order/update`
+
+Payload update sama dengan payload create draft order, ditambah identifier Sales Order:
+
+```json
+{
+  "params": {
+    "sale_order_id": 5001,
+    "partner_id": 45,
+    "frontend_request_uid": "SO-SUSU-20260430-USER12-0001-EDIT1",
+    "commitment_date": "2026-04-30 13:00:00",
+    "payment_term_id": 4,
+    "store_id": 1,
+    "delivery_vehicle_id": 5,
+    "fleet_driver_id": 7,
+    "departure_datetime": "2026-04-30 13:00:00",
+    "note": "Revisi quantity PO cabang A",
+    "quantities": {
+      "101": 30,
+      "102": 0,
+      "103": 6
+    }
+  }
+}
+```
+
+Catatan update:
+
+- Identifier wajib salah satu: `sale_order_id`, `order_id`, `id`, atau `name`.
+- Hanya Sales Order frontend dengan state `draft` atau `sent` yang bisa di-update.
+- Baris produk lama dari frontend diganti penuh sesuai `grid_lines` atau `quantities` terbaru; quantity `0` tidak dibuat menjadi order line.
+- Metadata pengiriman dan `grt.fleet.booking` terkait ikut di-update. Jika booking belum ada, backend membuat booking baru.
+- Response sukses memakai struktur yang sama dengan create, dengan `message: "Draft sales order updated"`.
+
+## Confirm Sales Order dari Frontend
+
+Gunakan endpoint berikut jika frontend ingin langsung melakukan confirm Sales Order setelah draft siap:
+
+- `POST /api/sales/minimarket/confirm-order`
+- `POST /api/sales/minimarket/draft-order/confirm`
+- `POST /api/sales/susu-olahan/confirm-order`
+- `POST /api/sales/susu-olahan/draft-order/confirm`
+
+Request cukup mengirim identifier Sales Order:
+
+```json
+{
+  "params": {
+    "sale_order_id": 5001
+  }
+}
+```
+
+Alias identifier yang diterima: `sale_order_id`, `order_id`, `id`, atau `name`.
+
+Catatan confirm:
+
+- Hanya Sales Order frontend yang bisa dikonfirmasi lewat endpoint ini.
+- SO dengan state `draft` atau `sent` akan diproses memakai `action_confirm()` standar Odoo.
+- Jika approval dua tahap aktif, SO harus sudah `approval_state = "approved"`. Jika belum approved, backend mengembalikan error dari validasi Odoo.
+- Jika SO sudah `sale` atau `done`, endpoint tetap mengembalikan success dengan `message: "Sales order already confirmed"`.
+- Response sukses memakai struktur yang sama dengan create/update, dengan `state` terbaru dan `approval_state`.
 
 ### `POST /api/sales/susu-olahan/draft-order`
 
@@ -547,6 +685,7 @@ Contoh request:
 {
   "params": {
     "partner_id": 45,
+    "frontend_request_uid": "SO-SUSU-20260430-USER12-0001",
     "commitment_date": "2026-04-30 10:00:00",
     "payment_term_id": 4,
     "store_id": 1,
@@ -584,6 +723,8 @@ Response sukses mengikuti response endpoint draft order existing:
     "line_count": 3,
     "terms_and_conditions": "sales order minimarket\n\nPO minimarket cabang A",
     "is_frontend_order": true,
+    "is_duplicate_request": false,
+    "frontend_request_uid": "SO-SUSU-20260430-USER12-0001",
     "skip_frontend_shipping": true,
     "sale_order_type": "reguler",
     "sale_order_type_label": "Reguler",
@@ -618,7 +759,8 @@ Response sukses mengikuti response endpoint draft order existing:
 - Draft order dibuat sebagai `is_frontend_order = True`.
 - Default Terms and Conditions endpoint ini adalah `sales order minimarket`.
 - Draft order minimarket dan susu olahan otomatis membuat booking fleet.
-- `business_category_id` Sales Order tetap mengikuti Business Category sales/minimarket, sedangkan Business Category Jasa booking mengikuti Business Category armada pada kendaraan bila tersedia.
+- `business_category_id` Sales Order tetap mengikuti Business Category sales/minimarket.
+- Business Category booking fleet bersifat teknis/kompatibel dan tidak menjadi input frontend.
 
 ## List Sales Order untuk Frontend
 
@@ -635,6 +777,7 @@ Contoh request:
   "params": {
     "business_category_id": 2,
     "frontend_only": true,
+    "unpaid_only": true,
     "date_from": "2026-04-01",
     "date_to": "2026-04-30",
     "include_lines": true,
@@ -652,6 +795,90 @@ Response item memuat:
 - toko, mobil, booking fleet, sopir
 - `lines` jika `include_lines = true`
 - `accounting` jika `include_accounting = true`; angka receivable/payable difilter ke Business Category SO
+
+Untuk layar kerja sales minimarket, payload yang paling disarankan adalah `frontend_only = true` dan `unpaid_only = true`, agar yang tampil hanya SO frontend yang belum full paid. Filter tambahan yang tersedia:
+
+- `payment_status`: satu status, misalnya `not_paid` atau `partial`.
+- `payment_statuses`: beberapa status, misalnya `["no_invoice", "not_paid", "partial", "in_payment"]`.
+- `unpaid_only`: shortcut untuk menyembunyikan status `paid` dan `reversed`.
+- `date_from` dan `date_to`: default mencari pada `date_order` atau `commitment_date`.
+- `date_field`: opsional jika frontend ingin memaksa filter tanggal memakai `date_order` atau `commitment_date` saja.
+
+## Detail Sales Order untuk View/Edit
+
+Gunakan endpoint berikut saat frontend membuka satu Sales Order dari list:
+
+- `POST /api/sales/minimarket/order-detail`
+- `POST /api/sales/minimarket/order/detail`
+- `POST /api/sales/susu-olahan/order-detail`
+- `POST /api/sales/susu-olahan/order/detail`
+
+Request:
+
+```json
+{
+  "params": {
+    "sale_order_id": 5001
+  }
+}
+```
+
+Alias identifier yang diterima: `sale_order_id`, `order_id`, `id`, atau `name`.
+
+Response utama:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "sale_order_id": 5001,
+    "name": "S00051",
+    "state": "draft",
+    "approval_state": "approved",
+    "can_edit": true,
+    "can_update": true,
+    "edit_allowed_states": ["draft", "sent"],
+    "can_attempt_confirm": true,
+    "can_confirm": true,
+    "requires_approval_before_confirm": false,
+    "update_endpoint": "/api/sales/minimarket/update-order",
+    "confirm_endpoint": "/api/sales/minimarket/confirm-order",
+    "partner_id": 45,
+    "customer_id": 45,
+    "customer_qr_ref": "CUSTQR2603-000001",
+    "commitment_date": "2026-04-30 13:00:00",
+    "payment_term_id": 4,
+    "store_id": 1,
+    "delivery_vehicle_id": 5,
+    "fleet_driver_id": 7,
+    "quantities": {
+      "101": 30,
+      "103": 6
+    },
+    "grid_lines": [
+      {"product_id": 101, "quantity": 30, "price_unit": 4500.0},
+      {"product_id": 103, "quantity": 6, "price_unit": 5000.0}
+    ],
+    "lines": [
+      {
+        "line_id": 90001,
+        "product_id": 101,
+        "product_name": "Susu UHT 200ml",
+        "quantity": 30,
+        "price_unit": 4500.0,
+        "price_subtotal": 135000.0,
+        "price_total": 135000.0
+      }
+    ]
+  }
+}
+```
+
+Catatan:
+
+- `can_edit` dan `can_update` hanya `true` untuk state `draft` dan `sent`.
+- Frontend dapat memakai `quantities` untuk mengisi ulang state grid Vue, lalu submit revisi ke `update_endpoint`.
+- Frontend dapat memakai `confirm_endpoint` untuk confirm. Jika `requires_approval_before_confirm = true`, tampilkan bahwa SO perlu approval dulu sebelum confirm.
 
 ## Master Fleet untuk Dropdown
 
@@ -705,10 +932,15 @@ export async function fetchSusuOlahanShippingProducts(baseUrl, filters = {}) {
   });
 }
 
+export async function fetchPaymentTerms(baseUrl) {
+  return postJsonRpc(`${baseUrl}/api/sales/payment-terms`, {});
+}
+
 export async function createMinimarketDraftOrder(baseUrl, form, quantities) {
   return postJsonRpc(`${baseUrl}/api/sales/minimarket/draft-order`, {
     partner_id: form.partnerId,
     customer_qr_ref: form.customerQrRef,
+    frontend_request_uid: form.requestUid,
     commitment_date: form.commitmentDate,
     payment_term_id: form.paymentTermId,
     store_id: form.storeId,
@@ -722,12 +954,71 @@ export async function createSusuOlahanDraftOrder(baseUrl, form, quantities) {
   return postJsonRpc(`${baseUrl}/api/sales/susu-olahan/draft-order`, {
     partner_id: form.partnerId,
     customer_qr_ref: form.customerQrRef,
+    frontend_request_uid: form.requestUid,
     commitment_date: form.commitmentDate,
     payment_term_id: form.paymentTermId,
     store_id: form.storeId,
     delivery_vehicle_id: form.vehicleId,
     note: form.note,
     quantities,
+  });
+}
+
+export async function updateMinimarketDraftOrder(baseUrl, saleOrderId, form, quantities) {
+  return postJsonRpc(`${baseUrl}/api/sales/minimarket/update-order`, {
+    sale_order_id: saleOrderId,
+    partner_id: form.partnerId,
+    customer_qr_ref: form.customerQrRef,
+    frontend_request_uid: form.requestUid,
+    commitment_date: form.commitmentDate,
+    payment_term_id: form.paymentTermId,
+    store_id: form.storeId,
+    delivery_vehicle_id: form.vehicleId,
+    fleet_driver_id: form.driverId,
+    departure_datetime: form.departureDatetime,
+    note: form.note,
+    quantities,
+  });
+}
+
+export async function updateSusuOlahanDraftOrder(baseUrl, saleOrderId, form, quantities) {
+  return postJsonRpc(`${baseUrl}/api/sales/susu-olahan/update-order`, {
+    sale_order_id: saleOrderId,
+    partner_id: form.partnerId,
+    customer_qr_ref: form.customerQrRef,
+    frontend_request_uid: form.requestUid,
+    commitment_date: form.commitmentDate,
+    payment_term_id: form.paymentTermId,
+    store_id: form.storeId,
+    delivery_vehicle_id: form.vehicleId,
+    fleet_driver_id: form.driverId,
+    departure_datetime: form.departureDatetime,
+    note: form.note,
+    quantities,
+  });
+}
+
+export async function confirmMinimarketOrder(baseUrl, saleOrderId) {
+  return postJsonRpc(`${baseUrl}/api/sales/minimarket/confirm-order`, {
+    sale_order_id: saleOrderId,
+  });
+}
+
+export async function confirmSusuOlahanOrder(baseUrl, saleOrderId) {
+  return postJsonRpc(`${baseUrl}/api/sales/susu-olahan/confirm-order`, {
+    sale_order_id: saleOrderId,
+  });
+}
+
+export async function fetchMinimarketOrderDetail(baseUrl, saleOrderId) {
+  return postJsonRpc(`${baseUrl}/api/sales/minimarket/order-detail`, {
+    sale_order_id: saleOrderId,
+  });
+}
+
+export async function fetchSusuOlahanOrderDetail(baseUrl, saleOrderId) {
+  return postJsonRpc(`${baseUrl}/api/sales/susu-olahan/order-detail`, {
+    sale_order_id: saleOrderId,
   });
 }
 ```
@@ -878,8 +1169,8 @@ Field request:
 
 | Field | Tipe | Keterangan |
 | --- | --- | --- |
-| `date_from` | `string` `YYYY-MM-DD` | Filter tanggal kirim mulai (commitment_date). Opsional. |
-| `date_to` | `string` `YYYY-MM-DD` | Filter tanggal kirim akhir (commitment_date). Opsional. |
+| `date_from` | `string` `YYYY-MM-DD` | Filter tanggal kirim mulai. Opsional. |
+| `date_to` | `string` `YYYY-MM-DD` | Filter tanggal kirim akhir. Opsional. |
 | `store_ids` | `int[]` | Filter satu atau lebih toko. Opsional. Alias: `toko_ids`. |
 | `delivery_vehicle_ids` | `int[]` | Filter satu atau lebih kendaraan. Opsional. Alias: `vehicle_ids`, `mobil_ids`. |
 | `customer_ids` | `int[]` | Filter satu atau lebih customer (partner). Opsional. |
