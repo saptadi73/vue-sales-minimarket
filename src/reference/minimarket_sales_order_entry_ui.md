@@ -793,6 +793,7 @@ Response item memuat:
 - identitas SO, customer, state, approval state, payment status
 - `business_category_id`, `business_category_name`, `analytic_account_id`, `analytic_account_name`
 - toko, mobil, booking fleet, sopir
+- `note`, `catatan`, dan `terms_and_conditions` dari catatan Sales Order
 - `lines` jika `include_lines = true`
 - `accounting` jika `include_accounting = true`; angka receivable/payable difilter ke Business Category SO
 
@@ -1222,6 +1223,9 @@ Response:
         "vehicle_id": 5,
         "mobil_id": 5,
         "vehicle_name": "Toyota Hilux / B 1234 XYZ",
+        "note": "sales order susu olahan\n\nPO minimarket cabang A",
+        "catatan": "sales order susu olahan\n\nPO minimarket cabang A",
+        "terms_and_conditions": "sales order susu olahan\n\nPO minimarket cabang A",
         "product_id": 101,
         "product_name": "Susu UHT 200ml",
         "quantity": 24.0,
@@ -1250,6 +1254,7 @@ Response:
 Catatan:
 
 - Hanya baris produk yang dikembalikan; flow minimarket saat ini tidak menambah baris ongkir otomatis.
+- Field `note`, `catatan`, dan `terms_and_conditions` bernilai sama, yaitu catatan/terms Sales Order.
 - Field `summary` adalah agregat seluruh data yang cocok dengan filter (bukan hanya halaman saat ini).
 - `state` mengikuti state `sale.order`: `draft`, `sale`, `done`, `cancel`.
 - Filter `store_ids` alias `toko_ids` dan `delivery_vehicle_ids` alias `vehicle_ids`/`mobil_ids` bisa dipakai bergantian.

@@ -192,6 +192,7 @@ const loadError = ref<string | null>(null)
 const currentBusinessCategoryId = ref<number | null>(null)
 const currentBusinessCategoryName = ref('')
 const currentPricelistName = ref('')
+const hasHandledInitialCustomerBind = ref(false)
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const selectedCustomer = computed(() => orderStore.draft.customer)
@@ -347,6 +348,15 @@ function refresh() {
 watch(
   () => selectedCustomer.value?.partner_id,
   (newPartnerId, oldPartnerId) => {
+    // Skip clearing on first customer bind to keep preloaded quantities in edit flow.
+    if (!hasHandledInitialCustomerBind.value) {
+      hasHandledInitialCustomerBind.value = true
+      offset.value = 0
+      searchQuery.value = ''
+      loadProducts()
+      return
+    }
+
     const hadPreviousCustomer = oldPartnerId !== undefined && oldPartnerId !== null
     const customerChanged = hadPreviousCustomer && newPartnerId !== oldPartnerId
 

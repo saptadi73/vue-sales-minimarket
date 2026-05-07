@@ -336,6 +336,10 @@ export interface DeliveryReportItem {
   price_subtotal?: number
   price_total?: number
   state?: string
+  note?: string
+  catatan?: string
+  terms_and_conditions?: string
+  sale_order_note?: string
 }
 
 export interface DeliveryReportSummary {

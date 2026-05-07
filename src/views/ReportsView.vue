@@ -155,6 +155,7 @@
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Toko/Wilayah</th>
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Kendaraan</th>
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Produk</th>
+                <th class="px-4 py-3 text-left font-semibold text-gray-700">Note</th>
                 <th class="px-4 py-3 text-right font-semibold text-gray-700">Qty</th>
                 <th class="px-4 py-3 text-left font-semibold text-gray-700">Satuan</th>
                 <th class="px-4 py-3 text-right font-semibold text-gray-700">Harga</th>
@@ -166,7 +167,7 @@
             </thead>
             <tbody class="divide-y divide-gray-200">
               <tr v-if="reportData.length === 0" class="hover:bg-gray-50">
-                <td colspan="13" class="px-4 py-8 text-center text-gray-500">
+                <td colspan="14" class="px-4 py-8 text-center text-gray-500">
                   Tidak ada data. Silakan klik "Tampilkan Report" untuk melihat laporan.
                 </td>
               </tr>
@@ -189,6 +190,9 @@
                   <div v-if="item.product_id" class="text-xs text-gray-500">
                     ID Produk: {{ item.product_id }}
                   </div>
+                </td>
+                <td class="px-4 py-3 text-gray-900 min-w-64 whitespace-pre-wrap">
+                  {{ getReportNote(item) || '-' }}
                 </td>
                 <td class="px-4 py-3 text-right text-gray-900">
                   {{ formatQuantity(item.quantity) }}
@@ -239,6 +243,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import * as XLSX from 'xlsx'
 import Layout from '@/components/Layout.vue'
 import productService from '@/services/productService'
 import deliveryReportService from '@/services/deliveryReportService'
@@ -334,6 +339,14 @@ function formatQuantity(quantity: number | undefined): string {
   return quantity ? new Intl.NumberFormat('id-ID').format(quantity) : '0'
 }
 
+function getInlineReportNote(item: DeliveryReportItem): string {
+  return item.note || item.catatan || item.terms_and_conditions || item.sale_order_note || ''
+}
+
+function getReportNote(item: DeliveryReportItem): string {
+  return getInlineReportNote(item)
+}
+
 async function loadReport() {
   if (isLoading.value) {
     return
@@ -424,55 +437,27 @@ function exportReport() {
     return
   }
 
-  // Simple export to CSV
-  const headers = [
-    'Tanggal',
-    'No SO',
-    'Customer',
-    'Toko/Wilayah',
-    'Kendaraan',
-    'Product ID',
-    'Produk',
-    'Qty',
-    'Satuan',
-    'Harga',
-    'Pajak',
-    'Subtotal',
-    'Total',
-  ]
-  const rows = reportData.value.map((item) => [
-    formatDate(item.delivery_date || item.date_order),
-    item.sale_order_name,
-    item.customer_name,
-    item.store_name,
-    item.vehicle_name,
-    item.product_id,
-    item.product_name,
-    item.quantity,
-    item.uom_name,
-    item.price_unit,
-    item.tax_amount,
-    item.price_subtotal,
-    item.price_total,
-  ])
+  const rows = reportData.value.map((item) => ({
+    Tanggal: formatDate(item.delivery_date || item.date_order),
+    'No SO': item.sale_order_name || '',
+    Customer: item.customer_name || '',
+    'Toko/Wilayah': item.store_name || '',
+    Kendaraan: item.vehicle_name || '',
+    'Product ID': item.product_id || '',
+    Produk: item.product_name || '',
+    Note: getReportNote(item),
+    Qty: item.quantity || 0,
+    Satuan: item.uom_name || '',
+    Harga: item.price_unit || 0,
+    Pajak: item.tax_amount || 0,
+    Subtotal: item.price_subtotal || 0,
+    Total: item.price_total || 0,
+  }))
 
-  let csv = headers.join(',') + '\n'
-  rows.forEach((row) => {
-    csv += row.map(escapeCsvValue).join(',') + '\n'
-  })
-
-  const link = document.createElement('a')
-  link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
-  link.download = `report-${filters.date_from}-to-${filters.date_to}.csv`
-  link.click()
-}
-
-function escapeCsvValue(value: unknown): string {
-  const stringValue = value == null ? '' : String(value)
-  if (/[",\n\r]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '""')}"`
-  }
-  return stringValue
+  const worksheet = XLSX.utils.json_to_sheet(rows)
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report Sales Order')
+  XLSX.writeFile(workbook, `report-${filters.date_from}-to-${filters.date_to}.xlsx`)
 }
 
 function isFirstItemOfOrder(item: DeliveryReportItem, index: number): boolean {

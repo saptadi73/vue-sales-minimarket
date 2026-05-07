@@ -411,7 +411,8 @@ function parseNumericQuantity(value: unknown): number {
   }
 
   if (typeof value === 'string') {
-    const parsed = Number(value)
+    const normalized = value.trim().replace(',', '.')
+    const parsed = Number(normalized)
     if (Number.isFinite(parsed)) {
       return parsed
     }
@@ -439,6 +440,9 @@ async function loadOrderData() {
   try {
     loadingOrder.value = true
     loadError.value = null
+
+    // Remove stale items from previous page before hydrating current order.
+    orderStore.clearItems()
 
     // Fetch order detail from backend
     const response = await orderService.getOrderDetail(saleOrderId.value)
@@ -546,8 +550,10 @@ async function loadOrderData() {
         const quantity = parseNumericQuantity(rawQuantity)
 
         if (Number.isFinite(productId) && productId > 0 && quantity > 0) {
+          const existingItem = orderStore.draft.items.get(productId)
+
           orderStore.setProductQuantity(
-            {
+            existingItem || {
               product_id: productId,
               default_code: '',
               barcode: '',
