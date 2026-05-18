@@ -284,7 +284,6 @@ export const useOrderStore = defineStore('order', () => {
         idempotency_key: effectiveRequestUid,
         commitment_date: formatCommitmentDateForBackend(draft.value.commitment_date),
         payment_term_id: draft.value.payment_term_id || 0,
-        business_category_id: draft.value.business_category_id ?? undefined,
         store_id: draft.value.store_id ?? undefined,
         toko_id: draft.value.store_id ?? undefined,
         delivery_vehicle_id: draft.value.vehicle_id ?? undefined,
@@ -328,15 +327,6 @@ export const useOrderStore = defineStore('order', () => {
       console.log('Products Debug:', productDebug)
       console.log('Unique Product Business Categories:', uniqueProductBusinessCategories)
       console.log('Defined Product Business Categories:', definedProductBusinessCategories)
-      if (
-        payload.business_category_id &&
-        definedProductBusinessCategories.length > 0 &&
-        !definedProductBusinessCategories.includes(payload.business_category_id)
-      ) {
-        console.warn(
-          '[ORDER_DEBUG] Potential mismatch: payload business_category_id tidak ada di business_category_id produk yang dipilih.',
-        )
-      }
       console.groupEnd()
 
       const validation = orderService.validateOrderPayload(payload)

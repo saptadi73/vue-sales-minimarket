@@ -241,7 +241,8 @@ async function loadOrders() {
   const params = {
     date_from: filters.date_from || undefined,
     date_to: filters.date_to || undefined,
-    frontend_only: false,
+    frontend_only: true,
+    unpaid_only: true,
     include_lines: false,
     include_accounting: true,
     limit: 100,

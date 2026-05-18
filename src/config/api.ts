@@ -16,14 +16,17 @@ export const API_CONFIG = {
     susuOlahanShippingProducts: '/api/sales/susu-olahan/shipping-products',
     susuOlahanStores: '/api/sales/susu-olahan/stores',
     susuOlahanVehicles: '/api/sales/susu-olahan/vehicles',
-    susuOlahanPaymentTerms: '/api/sales/susu-olahan/payment-terms',
     susuOlahanDeliveryReport: '/api/sales/susu-olahan/delivery-report',
     susuOlahanDraftOrder: '/api/sales/susu-olahan/draft-order',
+    susuOlahanOrderDetail: '/api/sales/susu-olahan/order-detail',
+    susuOlahanUpdateOrder: '/api/sales/susu-olahan/update-order',
+    susuOlahanConfirmOrder: '/api/sales/susu-olahan/confirm-order',
     susuOlahanOrders: '/api/sales/susu-olahan/orders',
 
     // Minimarket
     minimarketGridProducts: '/api/sales/minimarket/grid-products',
     minimarketDraftOrder: '/api/sales/minimarket/draft-order',
+    minimarketOrderDetail: '/api/sales/minimarket/order-detail',
     minimarketUpdateOrder: '/api/sales/minimarket/update-order',
     minimarketConfirmOrder: '/api/sales/minimarket/confirm-order',
     minimarketOrders: '/api/sales/minimarket/orders',

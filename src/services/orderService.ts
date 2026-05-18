@@ -6,12 +6,23 @@ import { getApiBaseUrl } from '@/utils/apiUrl'
 export interface GetSalesOrdersParams {
   business_category_id?: number
   frontend_only?: boolean
+  unpaid_only?: boolean
+  payment_status?: string
+  payment_statuses?: string[]
+  date_field?: 'date_order' | 'commitment_date'
   include_lines?: boolean
   include_accounting?: boolean
   date_from?: string
   date_to?: string
   limit?: number
   offset?: number
+}
+
+export type OrderApiScope = 'minimarket' | 'susu-olahan'
+
+interface OrderActionOptions {
+  endpoint?: string
+  preferredScope?: OrderApiScope
 }
 
 function summarizePayloadForDebug(payload: CreateOrderPayload) {
@@ -188,7 +199,7 @@ function normalizeBackendOrderError(message: string): string {
     return 'Data produk/quantity tidak valid. Pastikan minimal satu produk memiliki quantity > 0.'
   }
   if (lower.includes('business_category')) {
-    return `Business category tidak sesuai. Pastikan transaksi memakai kategori SUSU OLAHAN. Backend: ${message}`
+    return `Business category tidak sesuai dengan konteks akun user. Backend: ${message}`
   }
   if (
     lower.includes('unauthorized') ||
@@ -200,6 +211,32 @@ function normalizeBackendOrderError(message: string): string {
   }
 
   return message
+}
+
+function getScopeOrderDetailEndpoint(scope: OrderApiScope): string {
+  return scope === 'susu-olahan'
+    ? API_CONFIG.endpoints.susuOlahanOrderDetail
+    : API_CONFIG.endpoints.minimarketOrderDetail
+}
+
+function getScopeUpdateEndpoint(scope: OrderApiScope): string {
+  return scope === 'susu-olahan'
+    ? API_CONFIG.endpoints.susuOlahanUpdateOrder
+    : API_CONFIG.endpoints.minimarketUpdateOrder
+}
+
+function getScopeConfirmEndpoint(scope: OrderApiScope): string {
+  return scope === 'susu-olahan'
+    ? API_CONFIG.endpoints.susuOlahanConfirmOrder
+    : API_CONFIG.endpoints.minimarketConfirmOrder
+}
+
+function getOrderedScopes(preferredScope?: OrderApiScope): OrderApiScope[] {
+  if (preferredScope === 'susu-olahan') {
+    return ['susu-olahan', 'minimarket']
+  }
+
+  return ['minimarket', 'susu-olahan']
 }
 
 export const orderService = {
@@ -224,6 +261,10 @@ export const orderService = {
     try {
       return await postJsonRpc<SalesOrderListResponse>(API_CONFIG.endpoints.susuOlahanOrders, {
         frontend_only: params.frontend_only,
+        unpaid_only: params.unpaid_only,
+        payment_status: params.payment_status,
+        payment_statuses: params.payment_statuses,
+        date_field: params.date_field,
         include_lines: params.include_lines ?? false,
         include_accounting: params.include_accounting ?? true,
         business_category_id: params.business_category_id,
@@ -244,6 +285,10 @@ export const orderService = {
     try {
       return await postJsonRpc<SalesOrderListResponse>(API_CONFIG.endpoints.minimarketOrders, {
         frontend_only: params.frontend_only,
+        unpaid_only: params.unpaid_only,
+        payment_status: params.payment_status,
+        payment_statuses: params.payment_statuses,
+        date_field: params.date_field,
         include_lines: params.include_lines ?? false,
         include_accounting: params.include_accounting ?? true,
         business_category_id: params.business_category_id,
@@ -262,6 +307,10 @@ export const orderService = {
     try {
       return await postJsonRpc<SalesOrderListResponse>(API_CONFIG.endpoints.salesOrders, {
         frontend_only: params.frontend_only,
+        unpaid_only: params.unpaid_only,
+        payment_status: params.payment_status,
+        payment_statuses: params.payment_statuses,
+        date_field: params.date_field,
         include_lines: params.include_lines ?? false,
         include_accounting: params.include_accounting ?? true,
         business_category_id: params.business_category_id,
@@ -293,7 +342,6 @@ export const orderService = {
       customer_qr_ref: data.customer_qr_ref,
       commitment_date: data.commitment_date,
       payment_term_id: data.payment_term_id,
-      business_category_id: data.business_category_id,
       store_id: data.store_id,
       toko_id: data.toko_id,
       delivery_vehicle_id: data.delivery_vehicle_id,
@@ -307,18 +355,34 @@ export const orderService = {
   /**
    * Get detail sales order
    */
-  async getOrderDetail(saleOrderId: number): Promise<any> {
-    try {
-      return await postJsonRpc<any>('/api/sales/minimarket/order-detail', {
-        sale_order_id: saleOrderId,
-        include_lines: true,
-      })
-    } catch (error) {
-      console.error('Get order detail error:', error)
-      return {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Gagal memuat detail order',
+  async getOrderDetail(saleOrderId: number, options: OrderActionOptions = {}): Promise<any> {
+    const endpointsToTry = options.endpoint
+      ? [options.endpoint]
+      : getOrderedScopes(options.preferredScope).map((scope) => getScopeOrderDetailEndpoint(scope))
+
+    let lastErrorMessage = 'Gagal memuat detail order'
+
+    for (const endpoint of endpointsToTry) {
+      try {
+        const response = await postJsonRpc<any>(endpoint, {
+          sale_order_id: saleOrderId,
+          include_lines: true,
+        })
+
+        if (response?.status === 'success') {
+          return response
+        }
+
+        lastErrorMessage = response?.message || lastErrorMessage
+      } catch (error) {
+        console.error(`Get order detail error (${endpoint}):`, error)
+        lastErrorMessage = error instanceof Error ? error.message : lastErrorMessage
       }
+    }
+
+    return {
+      status: 'error',
+      message: lastErrorMessage,
     }
   },
 
@@ -326,7 +390,11 @@ export const orderService = {
    * Update draft sales order untuk minimarket
    * Sesuai dokumentasi: payload sama dengan create, ditambah sale_order_id dan frontend_request_uid
    */
-  async updateOrder(saleOrderId: number, data: any): Promise<OrderResponse> {
+  async updateOrder(
+    saleOrderId: number,
+    data: any,
+    options: OrderActionOptions = {},
+  ): Promise<OrderResponse> {
     const payload = {
       sale_order_id: saleOrderId,
       partner_id: data.partner_id,
@@ -342,8 +410,11 @@ export const orderService = {
       quantities: data.quantities || {},
     }
 
+    const endpoint =
+      options.endpoint || getScopeUpdateEndpoint(options.preferredScope || 'minimarket')
+
     try {
-      return await postJsonRpc<OrderResponse>(API_CONFIG.endpoints.minimarketUpdateOrder, payload)
+      return await postJsonRpc<OrderResponse>(endpoint, payload)
     } catch (error) {
       console.error('Update order error:', error)
       return extractOrderResponseFromError(error)
@@ -353,13 +424,19 @@ export const orderService = {
   /**
    * Confirm sales order untuk minimarket
    */
-  async confirmOrder(saleOrderId: number): Promise<OrderResponse> {
+  async confirmOrder(
+    saleOrderId: number,
+    options: OrderActionOptions = {},
+  ): Promise<OrderResponse> {
     const payload = {
       sale_order_id: saleOrderId,
     }
 
+    const endpoint =
+      options.endpoint || getScopeConfirmEndpoint(options.preferredScope || 'minimarket')
+
     try {
-      return await postJsonRpc<OrderResponse>(API_CONFIG.endpoints.minimarketConfirmOrder, payload)
+      return await postJsonRpc<OrderResponse>(endpoint, payload)
     } catch (error) {
       console.error('Confirm order error:', error)
       return extractOrderResponseFromError(error)
@@ -386,16 +463,6 @@ export const orderService = {
     }
     if (!payload.delivery_vehicle_id && !payload.vehicle_id && !payload.mobil_id) {
       errors.push('Kendaraan pengirim harus dipilih')
-    }
-    if (
-      !payload.driver_id &&
-      !payload.fleet_driver_id &&
-      !payload.grt_driver_id &&
-      !payload.sopir_id
-    ) {
-      errors.push(
-        'Driver pengirim harus tersedia. Pastikan kendaraan memiliki default driver di Fleet Odoo.',
-      )
     }
     if (!payload.payment_term_id) {
       errors.push('Syarat pembayaran harus dipilih')

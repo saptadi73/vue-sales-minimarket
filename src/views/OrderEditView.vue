@@ -650,19 +650,26 @@ async function submitUpdate() {
     const frontendRequestUid = `SO-EDIT-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
 
     // Call update order endpoint
-    const response = await orderService.updateOrder(saleOrderId.value, {
-      partner_id: currentOrder.value.partner_id,
-      customer_qr_ref: currentOrder.value.customer_qr_ref || '',
-      frontend_request_uid: frontendRequestUid,
-      commitment_date: orderForm.commitment_date.replace('T', ' '),
-      payment_term_id: orderForm.payment_term_id,
-      store_id: orderForm.store_id,
-      vehicle_id: orderForm.vehicle_id,
-      delivery_vehicle_id: orderForm.vehicle_id,
-      fleet_driver_id: driverId,
-      note: orderForm.note,
-      quantities,
-    })
+    const response = await orderService.updateOrder(
+      saleOrderId.value,
+      {
+        partner_id: currentOrder.value.partner_id,
+        customer_qr_ref: currentOrder.value.customer_qr_ref || '',
+        frontend_request_uid: frontendRequestUid,
+        commitment_date: orderForm.commitment_date.replace('T', ' '),
+        payment_term_id: orderForm.payment_term_id,
+        store_id: orderForm.store_id,
+        vehicle_id: orderForm.vehicle_id,
+        delivery_vehicle_id: orderForm.vehicle_id,
+        fleet_driver_id: driverId,
+        note: orderForm.note,
+        quantities,
+      },
+      {
+        endpoint: currentOrder.value.update_endpoint,
+        preferredScope: 'susu-olahan',
+      },
+    )
 
     if (!response || response.status !== 'success') {
       throw new Error(response?.message || 'Gagal update order')
@@ -695,7 +702,10 @@ async function submitConfirm() {
   try {
     orderStore.isSubmitting = true
 
-    const response = await orderService.confirmOrder(saleOrderId.value)
+    const response = await orderService.confirmOrder(saleOrderId.value, {
+      endpoint: currentOrder.value.confirm_endpoint,
+      preferredScope: 'susu-olahan',
+    })
 
     if (!response || response.status !== 'success') {
       throw new Error(response?.message || 'Gagal confirm order')

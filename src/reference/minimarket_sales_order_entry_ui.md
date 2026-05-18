@@ -17,8 +17,8 @@ Tujuan UI:
 | `/api/sales/susu-olahan/customers` | `POST` | user | mengambil master customer global untuk frontend SUSU OLAHAN |
 | `/api/sales/susu-olahan/customer-search` | `POST` | user | autocomplete customer global untuk pencarian saat mengetik di HP |
 | `/api/sales/payment-terms` | `POST` | user | mengambil master Term of Payment untuk dropdown TOP/payment term |
-| `/api/sales/susu-olahan/products` | `POST` | user | mengambil produk saleable Business Category SUSU OLAHAN |
-| `/api/sales/susu-olahan/shipping-products` | `POST` | user | endpoint referensi legacy produk ongkir SUSU OLAHAN (tidak dipakai flow draft-order minimarket saat ini) |
+| `/api/sales/susu-olahan/products` | `POST` | user | mengambil produk saleable sesuai Business Category akun user |
+| `/api/sales/susu-olahan/shipping-products` | `POST` | user | endpoint referensi legacy produk ongkir sesuai Business Category akun user (tidak dipakai flow draft-order minimarket saat ini) |
 | `/api/sales/susu-olahan/stores` | `POST` | user | mengambil daftar toko/cabang untuk dropdown toko pengirim |
 | `/api/sales/susu-olahan/vehicles` | `POST` | user | mengambil daftar kendaraan untuk dropdown mobil pengirim |
 | `/api/sales/susu-olahan/delivery-report` | `POST` | user | laporan pengiriman produk per periode/toko/kendaraan |
@@ -27,7 +27,7 @@ Tujuan UI:
 | `/api/sales/minimarket/order-detail` | `POST` | user | mengambil detail Sales Order frontend untuk halaman view/edit |
 | `/api/sales/minimarket/update-order` | `POST` | user | update draft Sales Order frontend minimarket yang sudah dibuat |
 | `/api/sales/minimarket/confirm-order` | `POST` | user | confirm Sales Order frontend minimarket |
-| `/api/sales/susu-olahan/draft-order` | `POST` | user | membuat draft Sales Order SUSU OLAHAN dari quantity grid tanpa menambah item ongkir |
+| `/api/sales/susu-olahan/draft-order` | `POST` | user | membuat draft Sales Order sesuai Business Category akun user dari quantity grid tanpa menambah item ongkir |
 | `/api/sales/susu-olahan/order-detail` | `POST` | user | mengambil detail Sales Order frontend SUSU OLAHAN untuk halaman view/edit |
 | `/api/sales/susu-olahan/update-order` | `POST` | user | update draft Sales Order frontend SUSU OLAHAN yang sudah dibuat |
 | `/api/sales/susu-olahan/confirm-order` | `POST` | user | confirm Sales Order frontend SUSU OLAHAN |
@@ -39,6 +39,22 @@ POST /api/sales/authenticate
 ```
 
 Frontend Vue harus mengirim request berikutnya dengan cookie session yang sama, misalnya `credentials: "include"`.
+
+## Prasyarat Akun Frontend
+
+Sebelum user dipakai untuk login UI minimarket, admin Odoo harus menyiapkan akses Business Category dan Sales Team.
+
+Ketentuan backend:
+
+- user wajib memiliki effective Business Category yang sesuai unit frontend, baik dari `Allowed Business Categories` maupun dari membership Team Sales
+- user wajib memiliki `Active Business Category` atau `Default Business Category`; jika user hanya punya satu effective category, backend dapat memakai kategori tunggal tersebut
+- user wajib menjadi leader/member pada `Sales Team` dengan Business Category yang sama
+- frontend tidak perlu mengirim `business_category_id`; jika tetap dikirim, nilainya harus sama dengan active/default Business Category user
+- frontend tidak perlu mengirim `team_id`; jika tetap dikirim, team tersebut harus team user yang login dan category team harus sama dengan active/default Business Category user
+- semua endpoint list produk, list Sales Order, detail/update/confirm order, customer context, delivery report, dan accounting summary memakai Business Category akun user
+- list/detail/update/confirm Sales Order frontend hanya boleh mengakses order pada Business Category aktif/default user
+
+Jika user punya akses ke beberapa Business Category dan `Active Business Category`/`Default Business Category` belum diisi, backend akan menolak request karena konteks frontend tidak jelas.
 
 ## Login dan Session
 
@@ -123,35 +139,37 @@ export async function loginSalesFrontend(baseUrl, form) {
 }
 ```
 
-## Setup Business Category SUSU OLAHAN
+## Setup Business Category Frontend
 
-Buat satu master Business Category untuk area sales susu olahan.
+Buat master Business Category untuk area/unit bisnis frontend.
 
-Nama yang disarankan:
+Contoh nama:
 
 ```text
 SUSU OLAHAN
+MINIMARKET
+SALES RETAIL
 ```
 
-Nama `susu olahan` tetap bisa ditemukan oleh endpoint karena lookup dilakukan case-insensitive, tetapi untuk menghindari duplikasi master gunakan satu bentuk resmi saja: `SUSU OLAHAN`.
+Nama route `/susu-olahan` tetap dipakai sebagai endpoint legacy, tetapi backend tidak lagi mewajibkan nama Business Category harus `SUSU OLAHAN`. Kategori transaksi mengikuti active/default Business Category akun user.
 
 Langkah setup:
 
 1. Buka Odoo Sales.
 2. Masuk ke menu `Business Categories`.
 3. Buat category baru.
-4. Isi `Name` dengan `SUSU OLAHAN`.
-5. Isi `Code` dengan `SUSU_OLAHAN` atau kode internal yang dipakai perusahaan.
+4. Isi `Name` sesuai unit bisnis.
+5. Isi `Code` dengan kode internal yang dipakai perusahaan.
 6. Pilih `Company`.
 7. Isi `Analytic Account` jika transaksi kategori ini harus membawa analytic khusus.
 8. Untuk flow minimarket/fleet internal saat ini, pastikan order tidak bergantung pada penambahan item ongkir otomatis.
 9. Aktifkan `Gunakan Tipe Sales Order` jika transaksi harus dipisah lagi dengan `reguler`, `kering`, `partus`, `silase`, atau `peralatan`.
-10. Pastikan user Sales punya akses ke kategori ini melalui `Allowed Business Categories` atau melalui Team Sales yang memakai category `SUSU OLAHAN`.
+10. Pastikan user Sales punya akses ke kategori ini melalui `Allowed Business Categories` atau melalui Team Sales yang memakai category tersebut.
 
 Setup produk:
 
 - Produk susu kemasan harus `Can be Sold`.
-- Jika modul `grt_inventory_business_category` aktif, isi `Business Category` pada Product/Product Template dengan `SUSU OLAHAN`.
+- Jika modul `grt_inventory_business_category` aktif, isi `Business Category` pada Product/Product Template dengan category yang sama dengan akun frontend.
 - Endpoint `/api/sales/susu-olahan/products` membutuhkan field product business category dari modul `grt_inventory_business_category`.
 - Endpoint `/api/sales/susu-olahan/shipping-products` tetap tersedia untuk kebutuhan referensi legacy, namun tidak dipakai dalam proses create draft-order minimarket saat ini.
 
@@ -159,19 +177,22 @@ Setup customer:
 
 - Customer minimarket perlu punya `Customer QR Ref`.
 - `Wilayah Ongkir` tetap bisa dipelihara sebagai data partner legacy, namun tidak digunakan untuk menambah line ongkir di flow minimarket saat ini.
-- Customer akan muncul di endpoint `/api/sales/susu-olahan/customers` dari master customer global. Business Category `SUSU OLAHAN` tidak menjadi syarat filter customer.
+- Customer akan muncul di endpoint `/api/sales/susu-olahan/customers` dari master customer global. Business Category tidak menjadi syarat filter customer.
 
 Setup akses user:
 
-- User login frontend minimarket wajib memiliki `effective_business_category_ids` yang memuat `SUSU OLAHAN`.
-- Endpoint minimarket/susu olahan menentukan category dari konteks akun user (active/default business category), bukan dari payload request.
-- Jika user tidak memiliki akses kategori tersebut, endpoint minimarket/susu olahan akan menolak request meskipun endpoint dipanggil dengan payload category yang benar.
+- User login frontend minimarket wajib memiliki `effective_business_category_ids` yang memuat category unit frontend.
+- Isi `Active Business Category` atau `Default Business Category` user dengan category tersebut.
+- User harus menjadi leader/member pada `Sales Team` yang memakai Business Category yang sama.
+- Endpoint minimarket/susu olahan menentukan category dari konteks akun user, bukan dari payload request.
+- Jika user tidak memiliki akses kategori tersebut atau tidak masuk Sales Team kategori tersebut, endpoint minimarket/susu olahan akan menolak request meskipun endpoint dipanggil dengan payload category yang benar.
+- Jika frontend tetap mengirim `business_category_id` atau `team_id`, nilainya hanya diterima bila cocok dengan active/default Business Category dan Sales Team user.
 
 ## Master Data SUSU OLAHAN
 
 ### `POST /api/sales/susu-olahan/products`
 
-Mengambil produk saleable dengan `Business Category = SUSU OLAHAN`.
+Mengambil produk saleable dengan Business Category yang sama dengan active/default Business Category akun user.
 Endpoint ini **wajib** menerima customer terpilih (`customer_id`/`partner_id` atau `customer_qr_ref`) karena harga produk mengikuti pricelist customer tersebut.
 
 Request:
@@ -448,7 +469,7 @@ Catatan:
 
 ### `POST /api/sales/minimarket/grid-products`
 
-Endpoint ini khusus flow minimarket SUSU OLAHAN. Backend otomatis memfilter produk `sale_ok` aktif dengan `business_category_id = SUSU OLAHAN`.
+Endpoint ini khusus flow minimarket. Backend otomatis memfilter produk `sale_ok` aktif dengan `business_category_id` sesuai active/default Business Category akun user.
 Endpoint ini juga **wajib** menerima customer terpilih (`customer_id`/`partner_id` atau `customer_qr_ref`) agar `list_price` dihitung berdasarkan pricelist customer.
 
 Request:
@@ -595,8 +616,8 @@ Field utama:
 - `departure_region_id` dan `destination_region_id`: opsional.
 - Jika `destination_region_id` kosong, backend memakai toko/minimarket sebagai wilayah tujuan booking.
 - Jika `departure_region_id` kosong, backend memakai/membuat wilayah company sebagai wilayah pemberangkatan.
-- `team_id`: opsional. Jika tidak dikirim, backend otomatis memakai Team Sales dari user yang login.
-- `business_category_id`: opsional. Jika tidak dikirim, backend otomatis mengambil Business Category dari Team Sales user.
+- `team_id`: opsional. Jika tidak dikirim, backend otomatis memilih Team Sales user pada active/default Business Category. Jika dikirim, team harus milik user login dan Business Category-nya harus sama dengan active/default Business Category user.
+- `business_category_id`: opsional. Frontend sebaiknya tidak mengirim field ini. Jika dikirim, nilainya harus sama dengan active/default Business Category user.
 - `sale_order_type`: tidak perlu dikirim dari frontend minimarket/susu olahan. Backend otomatis memakai `reguler`.
 - `grid_lines`: daftar produk dari sheet.
 - `quantities`: map `product_id -> quantity`, cocok untuk state object Vue.
@@ -675,7 +696,7 @@ Catatan confirm:
 
 ### `POST /api/sales/susu-olahan/draft-order`
 
-Endpoint ini adalah varian khusus untuk flow susu olahan. Payload-nya sama dengan `/api/sales/minimarket/draft-order`, tetapi backend otomatis memastikan `business_category_id` memakai Business Category `SUSU OLAHAN`.
+Endpoint ini adalah varian/alias flow lama. Payload-nya sama dengan `/api/sales/minimarket/draft-order`, dan backend otomatis memastikan Business Category mengikuti active/default Business Category user.
 
 Untuk implementasi saat ini, endpoint ini tidak menambahkan item ongkir ke Sales Order. Armada/fleet dipakai sebagai metadata pengiriman internal, bukan item penjualan tambahan.
 
@@ -705,8 +726,9 @@ Contoh request:
 }
 ```
 
-Jika frontend tetap mengirim `business_category_id`, nilainya harus mengarah ke category `SUSU OLAHAN`.
-Produk yang dikirim juga harus sudah diset ke Business Category `SUSU OLAHAN`.
+Jika frontend tetap mengirim `business_category_id`, nilainya harus mengarah ke active/default Business Category user.
+Jika frontend tetap mengirim `team_id`, team tersebut harus Sales Team user yang login dan Business Category-nya harus sama dengan active/default Business Category user.
+Produk yang dikirim juga harus sudah diset ke Business Category yang sama dengan akun user.
 Jika muncul error Business Category, cek `debug.payload_business_category_id`, `debug.resolved_business_category_*`, `debug.products`, dan `debug.user_effective_business_categories` di response.
 
 Response sukses mengikuti response endpoint draft order existing:
@@ -759,7 +781,7 @@ Response sukses mengikuti response endpoint draft order existing:
 - Draft order dibuat sebagai `is_frontend_order = True`.
 - Default Terms and Conditions endpoint ini adalah `sales order minimarket`.
 - Draft order minimarket dan susu olahan otomatis membuat booking fleet.
-- `business_category_id` Sales Order tetap mengikuti Business Category sales/minimarket.
+- `business_category_id` Sales Order mengikuti active/default Business Category akun user frontend.
 - Business Category booking fleet bersifat teknis/kompatibel dan tidak menjadi input frontend.
 
 ## List Sales Order untuk Frontend
@@ -914,7 +936,7 @@ Pada dropdown mobil, gunakan `fleet_driver_id` atau `grt_driver_id` dari respons
 - Jika frontend mengirim `note`, backend menggabungkan default note dan note frontend.
 - Frontend minimarket/susu olahan tidak perlu menampilkan pilihan tipe Sales Order.
 - Jika `sale_order_type` kosong, backend memakai `reguler`.
-- Endpoint susu olahan menolak produk yang Business Category produknya bukan `SUSU OLAHAN`.
+- Endpoint susu olahan/minimarket menolak produk yang Business Category produknya berbeda dari active/default Business Category akun user.
 - Endpoint ini memakai mekanisme order line, price, tax, dan approval yang sama dengan endpoint draft order existing.
 - Tidak ada penambahan line ongkir otomatis di flow minimarket/susu olahan saat ini.
 - Fleet/vehicle dicatat sebagai metadata pengiriman internal (`frontend_vehicle_id`), bukan item penjualan.
@@ -1167,7 +1189,7 @@ Catatan:
 
 ### `POST /api/sales/susu-olahan/delivery-report`
 
-Mengambil laporan pengiriman produk untuk frontend order kategori `SUSU OLAHAN`. Cocok untuk halaman rekap pengiriman harian maupun per periode.
+Mengambil laporan pengiriman produk untuk frontend order pada active/default Business Category akun user. Cocok untuk halaman rekap pengiriman harian maupun per periode.
 
 Request:
 
@@ -1198,7 +1220,7 @@ Field request:
 | `product_ids` | `int[]` | Filter produk tertentu. Opsional. |
 | `limit` / `offset` | `int` | Pagination baris. |
 
-Semua filter bersifat opsional. Jika tidak ada filter, endpoint mengembalikan semua baris pengiriman kategori SUSU OLAHAN.
+Semua filter bersifat opsional. Jika tidak ada filter, endpoint mengembalikan semua baris pengiriman pada active/default Business Category akun user.
 
 Response:
 
