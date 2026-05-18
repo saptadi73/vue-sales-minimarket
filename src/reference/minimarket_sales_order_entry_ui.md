@@ -16,6 +16,7 @@ Tujuan UI:
 | --- | --- | --- | --- |
 | `/api/sales/susu-olahan/customers` | `POST` | user | mengambil master customer global untuk frontend SUSU OLAHAN |
 | `/api/sales/susu-olahan/customer-search` | `POST` | user | autocomplete customer global untuk pencarian saat mengetik di HP |
+| `/api/sales/sale-order-types` | `POST` | user | mengambil daftar tipe Sales Order untuk dropdown frontend sesuai Business Category aktif/default user |
 | `/api/sales/payment-terms` | `POST` | user | mengambil master Term of Payment untuk dropdown TOP/payment term |
 | `/api/sales/susu-olahan/products` | `POST` | user | mengambil produk saleable sesuai Business Category akun user |
 | `/api/sales/susu-olahan/shipping-products` | `POST` | user | endpoint referensi legacy produk ongkir sesuai Business Category akun user (tidak dipakai flow draft-order minimarket saat ini) |
@@ -177,6 +178,7 @@ Setup customer:
 
 - Customer minimarket perlu punya `Customer QR Ref`.
 - `Wilayah Ongkir` tetap bisa dipelihara sebagai data partner legacy, namun tidak digunakan untuk menambah line ongkir di flow minimarket saat ini.
+- Endpoint minimarket/susu olahan tidak membutuhkan setup `Sales > Frontend Shipping Rules`. Jika rule belum ada, order minimarket tetap bisa dibuat karena backend selalu memakai `skip_frontend_shipping = true` untuk flow ini.
 - Customer akan muncul di endpoint `/api/sales/susu-olahan/customers` dari master customer global. Business Category tidak menjadi syarat filter customer.
 
 Setup akses user:
@@ -401,6 +403,71 @@ Alias endpoint:
 
 - `POST /api/sales/susu-olahan/customers/search`
 
+### `POST /api/sales/sale-order-types`
+
+Mengambil daftar tipe Sales Order untuk dropdown frontend. Backend memakai active/default Business Category user, lalu mengembalikan apakah tipe Sales Order wajib dipilih untuk category tersebut.
+
+Alias endpoint:
+
+- `POST /api/sales/order-types`
+- `POST /api/sales/minimarket/sale-order-types`
+- `POST /api/sales/susu-olahan/sale-order-types`
+
+Request:
+
+```json
+{
+  "params": {}
+}
+```
+
+Response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "business_category_id": 16,
+    "business_category_name": "Susu Olahan",
+    "use_sale_order_type": true,
+    "requires_sale_order_type": true,
+    "items": [
+      {
+        "key": "reguler",
+        "value": "reguler",
+        "label": "Reguler",
+        "enabled": true,
+        "defaults": {
+          "skip_frontend_shipping": true,
+          "sales_commission_enabled": true,
+          "sales_commission_method": "weight"
+        }
+      },
+      {
+        "key": "kering",
+        "value": "kering",
+        "label": "Kering",
+        "enabled": true,
+        "defaults": {
+          "skip_frontend_shipping": true,
+          "sales_commission_enabled": true,
+          "sales_commission_method": "weight"
+        }
+      }
+    ],
+    "count": 5
+  }
+}
+```
+
+Catatan:
+
+- Nilai yang dikirim saat create/update order adalah `sale_order_type`, misalnya `reguler`, `kering`, `partus`, `peralatan`, atau `silase`.
+- Jika frontend tidak mengirim `sale_order_type`, backend otomatis memakai `reguler`.
+- Jika frontend mengirim `sale_order_type`, backend memakai nilai tersebut setelah validasi.
+- Jika `requires_sale_order_type` bernilai `true`, frontend sebaiknya menampilkan dropdown dan prefill `reguler`.
+- Untuk flow minimarket, backend tetap membatasi tipe yang diterima ke `reguler`, `kering`, `partus`, dan `silase`.
+
 ### `POST /api/sales/payment-terms`
 
 Mengambil master Term of Payment (`account.payment.term`) untuk dropdown payment term/TOP di frontend sales minimarket.
@@ -454,16 +521,17 @@ Catatan:
 
 1. Sales login dari Vue.
 2. Frontend mencari customer saat user mengetik melalui `/api/sales/susu-olahan/customer-search`.
-3. Frontend mengambil master Term of Payment dari `/api/sales/payment-terms`.
-4. Frontend mengambil produk susu olahan dari `/api/sales/susu-olahan/products` atau `/api/sales/minimarket/grid-products`.
-5. Jika frontend masih memiliki halaman maintenance data legacy ongkir, data referensi bisa diambil dari `/api/sales/susu-olahan/shipping-products`.
-6. Frontend menampilkan produk sebagai sheet/list menurun.
-7. Sales memilih customer minimarket dan mengisi tanggal kirim, payment term, toko, dan kendaraan. Team sales mengikuti akun yang login, dan tipe Sales Order default `reguler`.
-8. Sales mengisi quantity pada baris produk.
-9. Frontend mengirim hanya produk dengan quantity lebih dari 0 ke `/api/sales/susu-olahan/draft-order`.
-10. Backend membuat draft quotation Odoo.
-11. Backend tidak menambahkan line ongkir otomatis; draft order hanya berisi item produk yang diinput frontend.
-12. Sales Order diproses lanjut melalui approval Odoo seperti biasa.
+3. Frontend mengambil daftar tipe Sales Order dari `/api/sales/sale-order-types`.
+4. Frontend mengambil master Term of Payment dari `/api/sales/payment-terms`.
+5. Frontend mengambil produk susu olahan dari `/api/sales/susu-olahan/products` atau `/api/sales/minimarket/grid-products`.
+6. Jika frontend masih memiliki halaman maintenance data legacy ongkir, data referensi bisa diambil dari `/api/sales/susu-olahan/shipping-products`.
+7. Frontend menampilkan produk sebagai sheet/list menurun.
+8. Sales memilih customer minimarket dan mengisi tanggal kirim, payment term, toko, kendaraan, dan tipe Sales Order.
+9. Sales mengisi quantity pada baris produk.
+10. Frontend mengirim hanya produk dengan quantity lebih dari 0 ke `/api/sales/susu-olahan/draft-order`.
+11. Backend membuat draft quotation Odoo.
+12. Backend tidak menambahkan line ongkir otomatis; draft order hanya berisi item produk yang diinput frontend.
+13. Sales Order diproses lanjut melalui approval Odoo seperti biasa.
 
 ## Grid Products
 
